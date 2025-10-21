@@ -3,8 +3,7 @@ import pandas as pd
 from urllib.parse import quote, unquote
 
 # --- Load your Google Sheet ---
-sheet_url = "hsheet_url = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/gviz/tq?tqx=out:csv&gid=905987173"
-"
+sheet_url = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/gviz/tq?tqx=out:csv&gid=905987173"
 df = pd.read_csv(sheet_url)
 
 st.title("Patient Database")
