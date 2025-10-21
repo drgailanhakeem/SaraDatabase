@@ -60,7 +60,7 @@ for _, row in filtered_df.iterrows():
         st.markdown("---")
         st.subheader(f"🧍 {row['Full Name']}")
         st.write(f"**Age:** {row['Age (in years)']} | **Sex:** {row['Sex']} | **Visit Date:** {row['Date of Visit']}")
-        st.write(f"**Doctor:** {row['Doctor's Name']}")
+        st.write(f"**Doctor:** {row['Doctor\'s Name']}")
         st.write(f"**Chief Complaint:** {row['Cheif Compliant']}")
         with st.expander("View Full Details"):
             st.dataframe(row.to_frame().rename(columns={0: "Details"}))
