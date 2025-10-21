@@ -162,7 +162,7 @@ else:
         for _, visit in patient_visits.iterrows():
             with st.container(border=True):
                 st.markdown(f"**🗓️ Date:** {visit['Visit Date']}")
-                st.markdown(f"**👨‍⚕️ Doctor:** {visit.get(\"Doctor's Name\", 'N/A')}")
+                st.markdown(f"**👨‍⚕️ Doctor:** {visit.get('Doctor\\'s Name', 'N/A')}")
                 st.markdown(f"**📝 Notes:** {visit.get('Notes', 'N/A')}")
     else:
         st.info("No visits found for this patient.")
