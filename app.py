@@ -1,98 +1,103 @@
 import streamlit as st
 import pandas as pd
 from urllib.parse import quote, unquote
-from datetime import date
+import datetime
 
-# Google Sheet public CSV URL
-sheet_url = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/gviz/tq?tqx=out:csv&gid=905987173"
+# Load your Google Sheet
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/export?format=csv&gid=905987173"
+df = pd.read_csv(SHEET_URL)
 
-@st.cache_data(ttl=300)
-def load_data():
-    df = pd.read_csv(sheet_url)
-    return df
+# Initialize dark mode toggle
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
 
-df = load_data()
+# Apply custom CSS for dark mode
+def set_dark_mode():
+    if st.session_state.dark_mode:
+        st.markdown(
+            """
+            <style>
+            body, .stApp {
+                background-color: #121212 !important;
+                color: white !important;
+            }
+            .stButton>button {
+                background-color: #1f1f1f !important;
+                color: white !important;
+                border-radius: 10px !important;
+                border: 1px solid #444 !important;
+            }
+            .stSelectbox, .stTextInput, .stTextArea, .stDateInput, .stNumberInput {
+                background-color: #1e1e1e !important;
+                color: white !important;
+            }
+            .stDataFrame, .stTable {
+                background-color: #1f1f1f !important;
+                color: white !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+set_dark_mode()
 
-# Apply CSS for light/dark mode toggle
-dark_mode = st.toggle("🌙 Dark Mode", value=False)
-if dark_mode:
-    st.markdown("""
-        <style>
-        body, .stApp {
-            background-color: #0e1117;
-            color: #fafafa;
-        }
-        .stTextInput, .stSelectbox, .stNumberInput, .stDateInput, .stTextArea {
-            background-color: #1a1c23;
-            color: white;
-        }
-        div[data-testid="stSidebar"] {
-            background-color: #161a22;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+# Dark mode toggle
+st.sidebar.toggle("🌙 Dark Mode", value=st.session_state.dark_mode, key="dark_mode", on_change=set_dark_mode)
+
+# App Title
+st.title("Patient Database")
+
+# Search functionality
+search_term = st.text_input("🔍 Search patient by name:")
+if search_term:
+    filtered_df = df[df["Full Name"].str.contains(search_term, case=False, na=False)]
 else:
-    st.markdown("""
-        <style>
-        body, .stApp {
-            background-color: white;
-            color: black;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    filtered_df = df.copy()
 
-st.title("🏥 Patient Database")
+# Show filtered patients in modern cards
+for _, row in filtered_df.iterrows():
+    with st.container():
+        st.markdown("---")
+        st.subheader(f"🧍 {row['Full Name']}")
+        st.write(f"**Age:** {row['Age (in years)']} | **Sex:** {row['Sex']} | **Visit Date:** {row['Date of Visit']}")
+        st.write(f"**Doctor:** {row['Doctor's Name']}")
+        st.write(f"**Chief Complaint:** {row['Cheif Compliant']}")
+        with st.expander("View Full Details"):
+            st.dataframe(row.to_frame().rename(columns={0: "Details"}))
 
-# --- Search Existing Patient ---
-st.subheader("🔍 Search Patient")
-search_term = st.text_input("Search by Full Name")
-filtered_df = df[df['Full Name'].str.contains(search_term, case=False, na=False)] if search_term else df
+        # Add Visit Section
+        with st.expander("➕ Add Visit"):
+            st.write("Enter visit details below:")
+            visit_data = {}
+            for col in df.columns:
+                if col in ["Full Name", "Timestamp"]:
+                    continue
+                elif "Date" in col:
+                    visit_data[col] = st.date_input(col, datetime.date.today())
+                elif "Sex" in col:
+                    visit_data[col] = st.selectbox(col, ["Male", "Female", "Other"])
+                elif "Status" in col or "Use" in col or "Marital" in col:
+                    visit_data[col] = st.selectbox(col, ["Yes", "No", "Unknown"])
+                else:
+                    visit_data[col] = st.text_input(col)
+            if st.button(f"Submit Visit for {row['Full Name']}"):
+                st.success(f"Visit for {row['Full Name']} recorded successfully (not yet synced to sheet).")
 
-if not filtered_df.empty:
-    selected_patient = st.selectbox("Select a patient:", filtered_df['Full Name'].unique())
-else:
-    selected_patient = None
-    st.warning("No matching patient found.")
+# Add New Patient Section
+with st.expander("➕ Add New Patient"):
+    st.write("Fill out the following form to add a new patient:")
+    new_patient = {}
+    for col in df.columns:
+        if "Timestamp" in col:
+            new_patient[col] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        elif "Date" in col:
+            new_patient[col] = st.date_input(col, datetime.date.today())
+        elif "Sex" in col:
+            new_patient[col] = st.selectbox(col, ["Male", "Female", "Other"])
+        elif "Status" in col or "Use" in col or "Marital" in col:
+            new_patient[col] = st.selectbox(col, ["Yes", "No", "Unknown"])
+        else:
+            new_patient[col] = st.text_input(col)
 
-# --- Display Patient Data ---
-if selected_patient:
-    patient_data = df[df['Full Name'] == selected_patient]
-    st.markdown(f"### 👤 Patient: {selected_patient}")
-
-    for _, row in patient_data.iterrows():
-        with st.expander(f"Visit on {row.get('Visit Date', 'Unknown Date')}"):
-            for col, val in row.items():
-                st.markdown(f"**{col}:** {val}")
-
-# --- Add New Patient ---
-st.subheader("➕ Add New Patient")
-
-with st.form("add_patient_form"):
-    full_name = st.text_input("Full Name")
-    age = st.number_input("Age", min_value=0, max_value=120)
-    sex = st.selectbox("Sex", ["Male", "Female"])
-    phone = st.text_input("Phone Number")
-    address = st.text_input("Address")
-    diagnosis = st.text_area("Diagnosis / Comments")
-
-    submit_patient = st.form_submit_button("Add Patient")
-
-    if submit_patient:
-        st.success(f"✅ Patient '{full_name}' added successfully (not synced yet).")
-
-# --- Add New Visit for Existing Patient ---
-st.subheader("🩺 Add New Visit")
-
-with st.form("add_visit_form"):
-    patient_for_visit = st.selectbox("Select Patient", df['Full Name'].unique())
-    visit_date = st.date_input("Visit Date", date.today())
-    hba1c = st.number_input("HbA1c (%)", min_value=0.0, max_value=20.0, step=0.1)
-    fbg = st.number_input("Fasting Blood Glucose (mg/dL)", min_value=0, max_value=500)
-    ppg = st.number_input("Postprandial Blood Glucose (mg/dL)", min_value=0, max_value=600)
-    medications = st.multiselect("Medications", ["Metformin", "SU", "DPP-4", "SGLT2", "GLP-1", "Other"])
-    notes = st.text_area("Visit Notes")
-
-    submit_visit = st.form_submit_button("Add Visit")
-
-    if submit_visit:
-        st.success(f"✅ New visit added for '{patient_for_visit}' (not synced yet).")
+    if st.button("Submit New Patient"):
+        st.success(f"New patient '{new_patient['Full Name']}' added successfully (not yet synced to sheet).")
