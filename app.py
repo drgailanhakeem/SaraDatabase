@@ -29,45 +29,64 @@ except Exception as e:
     st.error("❌ Failed to load data from Google Sheet.")
     st.stop()
 
-# --- Ensure unique ID for patients ---
+# --- Ensure Unique ID Column ---
 if "Patient ID" not in df.columns:
     df["Patient ID"] = [str(uuid.uuid4())[:8] for _ in range(len(df))]
+    # Update sheet with new ID column
+    sheet.update([df.columns.values.tolist()] + df.values.tolist())
 
 st.title("🩺 Sara Patient Database")
 
-# --- Routing using new st.query_params API ---
+# --- Use modern query params ---
 query_params = st.query_params
-selected_patient_id = query_params.get("patient", None)
+selected_patient_id = query_params.get("patient", [None])
+if isinstance(selected_patient_id, list):
+    selected_patient_id = selected_patient_id[0]
 
+# --- PATIENT PROFILE PAGE ---
 if selected_patient_id:
-    # Individual Patient Page
     patient_data = df[df["Patient ID"] == selected_patient_id]
 
     if not patient_data.empty:
         patient = patient_data.iloc[0]
-        st.header(f"👤 {patient['Full Name']}")
-        st.markdown(f"**Age:** {patient.get('Age', 'N/A')}")
-        st.markdown(f"**Gender:** {patient.get('Gender', 'N/A')}")
-        st.markdown(f"**Phone:** {patient.get('Phone Number', 'N/A')}")
-        st.markdown(f"**Address:** {patient.get('Address', 'N/A')}")
-        st.markdown(f"**Diagnosis:** {patient.get('Diagnosis', 'N/A')}")
+        st.markdown(f"### 👤 {patient['Full Name']}")
         st.divider()
 
-        # --- Add Visit Section ---
-        st.subheader("📋 Add Visit")
+        # --- Modern card layout ---
+        cols = st.columns(2)
+        with cols[0]:
+            st.markdown(f"**Age:** {patient.get('Age (in years)', 'N/A')}")
+            st.markdown(f"**Sex:** {patient.get('Sex', 'N/A')}")
+            st.markdown(f"**Address:** {patient.get('Address', 'N/A')}")
+            st.markdown(f"**Occupation:** {patient.get('Occupation', 'N/A')}")
+        with cols[1]:
+            st.markdown(f"**Marital Status:** {patient.get('Marital Status', 'N/A')}")
+            st.markdown(f"**Doctor:** {patient.get('Doctor\'s Name', 'N/A')}")
+            st.markdown(f"**Date of Visit:** {patient.get('Date of Visit', 'N/A')}")
+            st.markdown(f"**Chief Complaint:** {patient.get('Cheif Compliant', 'N/A')}")
+
+        st.divider()
+        st.subheader("🩹 Add New Visit")
         with st.form("add_visit_form"):
             visit_data = {}
-            visit_data["Date"] = st.date_input("Visit Date")
-            visit_data["Doctor"] = st.text_input("Doctor's Name")
-            visit_data["Notes"] = st.text_area("Visit Notes")
-            submitted = st.form_submit_button("Add Visit")
+            columns = sheet.row_values(1)
+            for col in columns:
+                if col in ["Timestamp", "Patient ID"]:
+                    continue
+                visit_data[col] = st.text_input(col)
+            submitted = st.form_submit_button("Submit Visit")
 
             if submitted:
-                st.success("✅ Visit added successfully (simulation).")
+                new_row = [visit_data.get(col, "") for col in columns]
+                new_row[columns.index("Patient ID")] = patient["Patient ID"]
+                sheet.append_row(new_row)
+                st.success("✅ Visit added successfully!")
+                st.rerun()
     else:
         st.error("❌ Patient not found in database.")
+
+# --- MAIN DASHBOARD PAGE ---
 else:
-    # --- Main Page: Patient List + Add New Patient ---
     st.header("🔍 Search Patients")
     search_term = st.text_input("Search by Full Name")
 
@@ -78,16 +97,32 @@ else:
 
     for _, row in filtered_df.iterrows():
         patient_link = f"?patient={row['Patient ID']}"
-        with st.expander(f"👤 {row['Full Name']} (Age: {row.get('Age', 'N/A')})"):
-            st.markdown(f"[Open Patient Profile]({patient_link})")
+        st.markdown(
+            f"""
+            <div style="background-color:#f0f2f6;padding:15px;margin:10px 0;border-radius:10px">
+                <strong>{row['Full Name']}</strong><br>
+                Age: {row.get('Age (in years)', 'N/A')} | Sex: {row.get('Sex', 'N/A')}<br>
+                <a href="{patient_link}" target="_self" style="color:#1e88e5;text-decoration:none;">View Profile</a>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.divider()
     st.subheader("➕ Add New Patient")
-    with st.form("add_patient_form"):
-        new_patient = {}
-        for col in ["Full Name", "Age", "Gender", "Phone Number", "Address", "Diagnosis"]:
-            new_patient[col] = st.text_input(col)
-        submitted = st.form_submit_button("Add Patient")
+    with st.expander("Add New Patient Form"):
+        with st.form("add_patient_form"):
+            new_patient = {}
+            columns = sheet.row_values(1)
+            for col in columns:
+                if col in ["Timestamp", "Patient ID"]:
+                    continue
+                new_patient[col] = st.text_input(col)
+            submitted = st.form_submit_button("Add Patient")
 
-        if submitted:
-            st.success("✅ New patient added successfully (simulation).")
+            if submitted:
+                new_id = str(uuid.uuid4())[:8]
+                new_patient["Patient ID"] = new_id
+                new_row = [new_patient.get(col, "") for col in columns]
+                sheet.append_row(new_row)
+                st.success(f"✅ Patient added successfully! [Open Profile](?patient={new_id})")
