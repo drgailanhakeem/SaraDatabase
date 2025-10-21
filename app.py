@@ -79,23 +79,24 @@ with st.expander("➕ Add New Patient"):
     new_data = {}
     columns = list(df.columns)
 
-    for col in columns:
+    for i, col in enumerate(columns):
+        key = f"patient_{i}"
         if col.lower() in ["timestamp"]:
             new_data[col] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         elif "date" in col.lower():
-            new_data[col] = st.date_input(col)
+            new_data[col] = st.date_input(col, key=key)
         elif "sex" in col.lower():
-            new_data[col] = st.selectbox(col, ["Male", "Female", "Other"])
+            new_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
         elif "smoking" in col.lower():
-            new_data[col] = st.selectbox(col, ["Never", "Former", "Current"])
+            new_data[col] = st.selectbox(col, ["Never", "Former", "Current"], key=key)
         elif "alcohol" in col.lower():
-            new_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"])
+            new_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"], key=key)
         elif "substance" in col.lower():
-            new_data[col] = st.selectbox(col, ["No", "Yes"])
+            new_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
         elif "marital" in col.lower():
-            new_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"])
+            new_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
         else:
-            new_data[col] = st.text_input(col)
+            new_data[col] = st.text_input(col, key=key)
 
     if st.button("✅ Add Patient"):
         try:
@@ -111,23 +112,24 @@ with st.expander("🩹 Add New Visit"):
     visit_data = {}
     columns = list(df.columns)
 
-    for col in columns:
+    for i, col in enumerate(columns):
+        key = f"visit_{i}"  # Unique key for visit form
         if col.lower() in ["timestamp"]:
             visit_data[col] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         elif "date" in col.lower():
-            visit_data[col] = st.date_input(col)
+            visit_data[col] = st.date_input(col, key=key)
         elif "sex" in col.lower():
-            visit_data[col] = st.selectbox(col, ["Male", "Female", "Other"])
+            visit_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
         elif "smoking" in col.lower():
-            visit_data[col] = st.selectbox(col, ["Never", "Former", "Current"])
+            visit_data[col] = st.selectbox(col, ["Never", "Former", "Current"], key=key)
         elif "alcohol" in col.lower():
-            visit_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"])
+            visit_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"], key=key)
         elif "substance" in col.lower():
-            visit_data[col] = st.selectbox(col, ["No", "Yes"])
+            visit_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
         elif "marital" in col.lower():
-            visit_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"])
+            visit_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
         else:
-            visit_data[col] = st.text_input(col)
+            visit_data[col] = st.text_input(col, key=key)
 
     if st.button("💾 Add Visit"):
         try:
