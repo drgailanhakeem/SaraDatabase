@@ -12,6 +12,9 @@ st.title("Patient Database")
 query_params = st.query_params
 selected_patient = query_params.get("patient", None)
 
+# --- Base URL of your deployed Streamlit app ---
+BASE_URL = "https://saradatabase.streamlit.app/"
+
 # --- Main logic ---
 if selected_patient:
     selected_patient = unquote(selected_patient)
@@ -35,8 +38,9 @@ else:
     patient_name = st.selectbox("Select a patient", sorted(df["Full Name"].dropna().unique()))
     
     if st.button("Generate Link"):
-        encoded_name = quote(patient_name)
-        link = f"{st.runtime.scriptrunner.script_run_context.get_script_run_ctx().page_script_hash}?patient={encoded_name}"
-        st.write("Patient link:")
-        st.code(f"?patient={encoded_name}", language="text")
-        st.markdown(f"[Open Patient Page](?patient={encoded_name})", unsafe_allow_html=True)
+        encoded_patient = quote(patient_name)
+        link = f"{BASE_URL}?patient={encoded_patient}"
+
+        st.success(f"Link for **{patient_name}** generated successfully!")
+        st.code(link, language="text")
+        st.markdown(f"[Open {patient_name}'s record]({link})", unsafe_allow_html=True)
