@@ -44,7 +44,17 @@ st.dataframe(filtered)
 
 # --- Generate shareable link ---
 encoded_patient = urllib.parse.quote(selected_patient)
-link = f"{st.request.url_root}?patient={encoded_patient}"
+link = f"{st.experimental_get_query_params()}"
+
+# Fallback: manually build URL
+base_url = st.experimental_get_query_params()
+try:
+    current_url = st.experimental_get_query_params()
+    link = f"{st.runtime.scriptrunner.get_script_run_ctx().request_page_url}?patient={encoded_patient}"
+except Exception:
+    # Streamlit Cloud safe fallback
+    link = f"https://{st.get_option('server.address') or 'your-app-name'}.streamlit.app/?patient={encoded_patient}"
+
 st.markdown(f"🔗 **Direct link to this patient:** [{link}]({link})")
 
 # --- Add New Visit ---
@@ -64,7 +74,7 @@ with st.form("new_visit_form"):
             "Notes": note
         }
 
-        # Fill missing columns to match sheet
+        # Fill missing columns
         for col in data.columns:
             if col not in new_row:
                 new_row[col] = ""
