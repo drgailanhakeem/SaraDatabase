@@ -112,7 +112,7 @@ if patient_id:
             for _, visit in visits.iterrows():
                 st.markdown('<div class="visit-card">', unsafe_allow_html=True)
                 st.markdown(f"**Visit Date:** {visit.get('Date of Visit', 'N/A')}")
-                st.markdown(f"**Doctor:** {visit.get(\"Doctor's Name\", 'N/A')}")
+                st.markdown("**Doctor:** {}".format(visit.get("Doctor's Name", "N/A")))
                 st.markdown(f"**Chief Complaint:** {visit.get('Cheif Compliant', 'N/A')}")
                 st.markdown(f"**Diagnosis:** {visit.get('Final Diagnosis', 'N/A')}")
                 st.markdown(f"**Medications Prescribed:** {visit.get('Medications Prescribed', 'N/A')}")
