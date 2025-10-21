@@ -2,54 +2,71 @@ import streamlit as st
 import pandas as pd
 from urllib.parse import quote, unquote
 
-# --- Load your Google Sheet ---
-sheet_url = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/gviz/tq?tqx=out:csv&gid=905987173"
-df = pd.read_csv(sheet_url)
+# --- Load Google Sheet ---
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/gviz/tq?tqx=out:csv&gid=905987173"
+df = pd.read_csv(SHEET_URL)
 
-st.title("🩺 Patient Database")
+# --- Ensure unique patient ID column ---
+if "Patient ID" not in df.columns:
+    df["Patient ID"] = [f"P{str(i+1).zfill(4)}" for i in range(len(df))]
 
-# --- Get query parameters ---
-query_params = st.query_params
-selected_patient = query_params.get("patient", None)
+# --- App title ---
+st.title("🩺 Patient Database Dashboard")
 
-# --- Base URL of your deployed Streamlit app ---
+# --- Handle query parameter ---
+query_params = st.experimental_get_query_params()
+selected_id = query_params.get("id", [None])[0]
+
+# --- Base URL ---
 BASE_URL = "https://saradatabase.streamlit.app/"
 
-# --- Main logic ---
-if selected_patient:
-    selected_patient = unquote(selected_patient)
-    st.subheader(f"📋 Data for {selected_patient}")
-    
-    # Filter patient's data
-    patient_data = df[df["Full Name"].str.strip().str.lower() == selected_patient.strip().lower()]
-    
+# --- Helper: Render patient card ---
+def render_patient_card(patient_row):
+    st.markdown(f"""
+    <div style="
+        background-color:#f9f9f9;
+        padding:20px;
+        border-radius:15px;
+        box-shadow:0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom:15px;">
+        <h3 style="margin-bottom:0;">🧍‍♂️ {patient_row['Full Name']}</h3>
+        <p style="margin:5px 0;"><b>ID:</b> {patient_row['Patient ID']}</p>
+        <p style="margin:5px 0;"><b>Age:</b> {patient_row.get('Age ( In Years )', '—')}</p>
+        <p style="margin:5px 0;"><b>Gender:</b> {patient_row.get('Gender', '—')}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# --- If viewing a single patient ---
+if selected_id:
+    selected_id = unquote(selected_id)
+    patient_data = df[df["Patient ID"] == selected_id]
+
     if not patient_data.empty:
+        patient_info = patient_data.iloc[0]
+        st.markdown("## 🧾 Patient Profile")
+        render_patient_card(patient_info)
+
+        st.markdown("### 📊 Visit History")
         st.dataframe(patient_data)
     else:
-        st.warning("No records found for this patient.")
+        st.error("Patient not found.")
 else:
-    st.subheader("👥 All Patients")
-    st.dataframe(df)
+    # --- Search / Browse mode ---
+    st.subheader("🔍 Search or Browse Patients")
 
-    st.markdown("---")
-    st.subheader("🔍 Search Patient and Generate Link")
-
-    # --- Search bar ---
-    search_query = st.text_input("Type a name to search:")
+    search_query = st.text_input("Search by name or ID:")
     if search_query:
-        filtered_patients = df[df["Full Name"].str.contains(search_query, case=False, na=False)]
+        filtered = df[df["Full Name"].str.contains(search_query, case=False, na=False) |
+                      df["Patient ID"].str.contains(search_query, case=False, na=False)]
     else:
-        filtered_patients = df
+        filtered = df
 
-    # --- Show filtered patient list ---
-    patient_list = sorted(filtered_patients["Full Name"].dropna().unique())
-    patient_name = st.selectbox("Select a patient", patient_list)
-
-    # --- Generate link for selected patient ---
-    if st.button("Generate Link"):
-        encoded_patient = quote(patient_name)
-        link = f"{BASE_URL}?patient={encoded_patient}"
-
-        st.success(f"Link for **{patient_name}** generated successfully!")
-        st.code(link, language="text")
-        st.markdown(f"[Open {patient_name}'s record]({link})", unsafe_allow_html=True)
+    for _, row in filtered.iterrows():
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            render_patient_card(row)
+        with col2:
+            encoded_id = quote(row["Patient ID"])
+            link = f"{BASE_URL}?id={encoded_id}"
+            st.markdown(f"[🔗 Open Record]({link})", unsafe_allow_html=True)
