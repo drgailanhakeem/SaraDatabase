@@ -8,8 +8,8 @@ st.title("My Google Sheet Data")
 
 # Authenticate using your secrets
 scope = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-creds = Credentials.from_service_account_info(
-    st.secrets["sara-177@sara-database-97.iam.gserviceaccount.com"], scopes=scope
+creds = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"], scopes=scope
 )
 client = gspread.authorize(creds)
 
