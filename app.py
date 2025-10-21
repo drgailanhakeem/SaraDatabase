@@ -4,198 +4,137 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 from datetime import datetime
 
-# --------------------------
-#  GOOGLE SHEET CONNECTION
-# --------------------------
+# --- PAGE CONFIG ---
 st.set_page_config(page_title="Sara Patient Database", layout="wide")
 
-scope = ["https://www.googleapis.com/auth/spreadsheets"]
+# --- DARK MODE TOGGLE ---
+dark_mode = st.toggle("🌙 Dark Mode", value=False)
+if dark_mode:
+    st.markdown("""
+        <style>
+        body, .stApp, .stDataFrame, .stSelectbox, .stTextInput, .stDateInput, .stTextArea, .stButton {
+            background-color: #1E1E1E !important;
+            color: white !important;
+        }
+        .stMarkdown, .stSubheader, .stHeader, .stDataFrame th, .stDataFrame td {
+            color: white !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+# --- AUTHENTICATION ---
 try:
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=scope
-    )
+    scope = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
     client = gspread.authorize(creds)
-    sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet(
-        st.secrets["sheet"]["sheet_name"]
-    )
+    sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet(st.secrets["sheet"]["sheet_name"])
     st.success("✅ Successfully connected to Google Sheet")
 except Exception as e:
-    st.error(f"❌ Failed to connect to Google Sheet: {e}")
+    st.error(f"❌ Google Sheets Connection Failed: {e}")
     st.stop()
 
-# Load main patient data
-data = sheet.get_all_records()
-df = pd.DataFrame(data)
-
-# Create Visits sheet if not exist
+# --- LOAD DATA ---
 try:
-    visits_sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet("Visits")
-except:
-    ws = client.open_by_key(st.secrets["sheet"]["sheet_id"])
-    ws.add_worksheet(title="Visits", rows=1000, cols=50)
-    visits_sheet = ws.worksheet("Visits")
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+except Exception as e:
+    st.error(f"❌ Error loading data: {e}")
+    st.stop()
 
-# --------------------------
-#  PAGE NAVIGATION
-# --------------------------
-query_params = st.query_params
-patient_id = query_params.get("id", [None])[0] if isinstance(query_params.get("id"), list) else query_params.get("id")
+st.title("🩺 Sara Patient Database")
 
-# --------------------------
-#  HOMEPAGE (PATIENT LIST)
-# --------------------------
-if not patient_id:
-    st.title("🩺 Sara Patient Database")
+# --- SEARCH PATIENT ---
+st.subheader("🔍 Search Patients")
+search_query = st.text_input("Search by Full Name").strip().lower()
 
-    search = st.text_input("🔍 Search by Full Name")
-    if search:
-        filtered = df[df["Full Name"].str.contains(search, case=False, na=False)]
-    else:
-        filtered = df
-
-    if not filtered.empty:
-        for _, row in filtered.iterrows():
-            patient_uid = str(row["Timestamp"])
-            patient_name = row["Full Name"]
-            age = row.get("Age (in years)", "N/A")
-
-            st.markdown(
-                f"👤 [{patient_name} (Age: {age})](?id={patient_uid})"
-            )
-    else:
-        st.warning("No patients found.")
-
-    st.markdown("### ➕ Add New Patient")
-    with st.form("add_patient"):
-        cols = st.columns(2)
-        with cols[0]:
-            full_name = st.text_input("Full Name")
-            dob = st.date_input("Date of Birth")
-            sex = st.selectbox("Sex", ["Male", "Female"])
-            address = st.text_input("Address")
-        with cols[1]:
-            age = st.number_input("Age (in years)", min_value=0, max_value=120)
-            doctor = st.text_input("Doctor's Name")
-            submitter = st.text_input("Submitter Name")
-
-        submit_btn = st.form_submit_button("Add Patient")
-        if submit_btn:
-            new_row = [
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                full_name,
-                dob.strftime("%Y-%m-%d"),
-                age,
-                sex,
-                address,
-                "",
-                "",
-                doctor,
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                submitter,
-            ]
-            sheet.append_row(new_row)
-            st.success("✅ Patient added successfully! Please refresh the page.")
-# --------------------------
-#  PATIENT PROFILE PAGE
-# --------------------------
+if search_query:
+    filtered_df = df[df["Full Name"].str.lower().str.contains(search_query)]
 else:
-    st.title("🩺 Patient Profile")
+    filtered_df = df
 
-    patient = df[df["Timestamp"].astype(str) == str(patient_id)]
-    if patient.empty:
-        st.error("❌ Patient not found in database.")
-        st.stop()
+# --- DISPLAY PATIENTS NICELY ---
+if not filtered_df.empty:
+    for _, row in filtered_df.iterrows():
+        with st.expander(f"👤 {row['Full Name']} (Age: {row.get('Age (in years)', 'N/A')})"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**Sex:** {row.get('Sex', '')}")
+                st.markdown(f"**Address:** {row.get('Address', '')}")
+                st.markdown(f"**Date of Visit:** {row.get('Date of Visit', '')}")
+                st.markdown(f"**Doctor's Name:** {row.get('Doctor\'s Name', '')}")
+                st.markdown(f"**Chief Complaint:** {row.get('Cheif Compliant', '')}")
+                st.markdown(f"**Onset:** {row.get('Onset', '')}")
+            with col2:
+                st.markdown(f"**Working Diagnosis:** {row.get('Working Diagnosis', '')}")
+                st.markdown(f"**Final Diagnosis:** {row.get('Final Diagnosis', '')}")
+                st.markdown(f"**Medications Prescribed:** {row.get('Medications Prescribed', '')}")
+                st.markdown(f"**Follow-Up Date:** {row.get('Follow-Up Date', '')}")
+                st.markdown(f"**Doctor's Notes / Impression:** {row.get('Doctor\'s Notes / Impression', '')}")
+else:
+    st.info("No patients found.")
 
-    patient = patient.iloc[0]
+# --- ADD NEW PATIENT ---
+with st.expander("➕ Add New Patient"):
+    st.write("Fill in the patient details below:")
+    new_data = {}
+    columns = list(df.columns)
 
-    # --- General Info ---
-    st.subheader("📋 General Information")
-    cols = st.columns(2)
-    with cols[0]:
-        st.write(f"**Full Name:** {patient.get('Full Name', 'N/A')}")
-        st.write(f"**Date of Birth:** {patient.get('Date of Birth', 'N/A')}")
-        st.write(f"**Age:** {patient.get('Age (in years)', 'N/A')}")
-        st.write(f"**Sex:** {patient.get('Sex', 'N/A')}")
-    with cols[1]:
-        st.write(f"**Address:** {patient.get('Address', 'N/A')}")
-        st.write(f"**Occupation:** {patient.get('Occupation', 'N/A')}")
-        st.write(f"**Marital Status:** {patient.get('Marital Status', 'N/A')}")
-        st.write(f'**Doctor:** {patient.get("Doctor\'s Name", "N/A")}')
-        st.write(f"**Submitter:** {patient.get('Submitter Name', 'N/A')}")
+    for i, col in enumerate(columns):
+        key = f"patient_{i}"
+        if col.lower() in ["timestamp"]:
+            new_data[col] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        elif "date" in col.lower():
+            new_data[col] = st.date_input(col, key=key)
+        elif "sex" in col.lower():
+            new_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
+        elif "smoking" in col.lower():
+            new_data[col] = st.selectbox(col, ["Never", "Former", "Current"], key=key)
+        elif "alcohol" in col.lower():
+            new_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"], key=key)
+        elif "substance" in col.lower():
+            new_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
+        elif "marital" in col.lower():
+            new_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
+        else:
+            new_data[col] = st.text_input(col, key=key)
 
-    # --- Clinical Information ---
-    st.subheader("🧠 Clinical Information")
-    st.write(f"**Chief Complaint:** {patient.get('Cheif Compliant', 'N/A')}")
-    st.write(f"**Duration of Complaint:** {patient.get('Duration of Compliant', 'N/A')}")
-    st.write(f"**Onset:** {patient.get('Onset', 'N/A')}")
-    st.write(f"**HPI:** {patient.get('HPI', 'N/A')}")
-    st.write(f"**Past Medical History:** {patient.get('Past Medical Hx', 'N/A')}")
-    st.write(f"**Past Surgical History:** {patient.get('Past Surgical Hx', 'N/A')}")
-    st.write(f"**Family History:** {patient.get('Family Hx', 'N/A')}")
-    st.write(f"**Allergies:** {patient.get('Allergies', 'N/A')}")
-    st.write(f"**Current Medications:** {patient.get('Current Medications', 'N/A')}")
+    if st.button("✅ Add Patient"):
+        try:
+            sheet.append_row(list(new_data.values()))
+            st.success("New patient added successfully!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error adding patient: {e}")
 
-    # --- Visit Information ---
-    st.subheader("📅 Visit Summary")
-    patient_visits = pd.DataFrame(visits_sheet.get_all_records())
-    patient_visits = patient_visits[patient_visits["Patient ID"] == patient_id] if not patient_visits.empty else pd.DataFrame()
+# --- ADD NEW VISIT ---
+with st.expander("🩹 Add New Visit"):
+    st.write("Fill in visit details for an existing patient:")
+    visit_data = {}
+    columns = list(df.columns)
 
-    if not patient_visits.empty:
-        for _, visit in patient_visits.iterrows():
-            st.markdown("---")
-            st.write(f"**Visit Date:** {visit.get('Date of Visit', 'N/A')}")
-            st.write(f"**Doctor:** {visit.get('Doctor', 'N/A')}")
-            st.write(f"**Notes:** {visit.get('Doctor Notes', 'N/A')}")
-    else:
-        st.info("No previous visits recorded.")
+    for i, col in enumerate(columns):
+        key = f"visit_{i}"  # Unique key for visit form
+        if col.lower() in ["timestamp"]:
+            visit_data[col] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        elif "date" in col.lower():
+            visit_data[col] = st.date_input(col, key=key)
+        elif "sex" in col.lower():
+            visit_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
+        elif "smoking" in col.lower():
+            visit_data[col] = st.selectbox(col, ["Never", "Former", "Current"], key=key)
+        elif "alcohol" in col.lower():
+            visit_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"], key=key)
+        elif "substance" in col.lower():
+            visit_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
+        elif "marital" in col.lower():
+            visit_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
+        else:
+            visit_data[col] = st.text_input(col, key=key)
 
-    # --- Add Visit ---
-    with st.expander("➕ Add New Visit", expanded=False):
-        with st.form("add_visit"):
-            date_visit = st.date_input("Date of Visit", datetime.today())
-            doctor_name = st.text_input("Doctor")
-            notes = st.text_area("Doctor Notes / Impression")
-            submit_visit = st.form_submit_button("Save Visit")
-
-            if submit_visit:
-                new_visit = [patient_id, str(date_visit), doctor_name, notes]
-                visits_sheet.append_row(new_visit)
-                st.success("✅ Visit saved successfully!")
+    if st.button("💾 Add Visit"):
+        try:
+            sheet.append_row(list(visit_data.values()))
+            st.success("New visit added successfully!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error adding visit: {e}")
