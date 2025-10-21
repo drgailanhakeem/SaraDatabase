@@ -9,22 +9,23 @@ Full production-ready Streamlit app:
 """
 
 import streamlit as st
-import pandas as pd
 import gspread
-from google.oauth2 import service_account
-from urllib.parse import quote, unquote
-from datetime import date, datetime
 from google.oauth2.service_account import Credentials
+import pandas as pd
 
-st.title("Google Sheets Connection Test")
+# Authenticate once globally
+scope = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+client = gspread.authorize(creds)
 
-try:
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
-    client = gspread.authorize(creds)
-    sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet(st.secrets["sheet"]["sheet_name"])
-    st.success("✅ Connected successfully to Google Sheet!")
-except Exception as e:
-    st.error(f"❌ Failed to connect to Google Sheet:\n\n{e}")
+# Open the Google Sheet
+sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet(st.secrets["sheet"]["sheet_name"])
+
+# Load data into DataFrame
+data = sheet.get_all_records()
+df = pd.DataFrame(data)
+
+st.success("✅ Successfully connected to Google Sheet")
 
 
 # ---------------------------
