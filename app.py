@@ -35,9 +35,9 @@ if "Patient ID" not in df.columns:
 
 st.title("🩺 Sara Patient Database")
 
-# --- Routing ---
-query_params = st.experimental_get_query_params()
-selected_patient_id = query_params.get("patient", [None])[0]
+# --- Routing using new st.query_params API ---
+query_params = st.query_params
+selected_patient_id = query_params.get("patient", None)
 
 if selected_patient_id:
     # Individual Patient Page
