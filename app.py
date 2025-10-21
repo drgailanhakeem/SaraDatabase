@@ -18,10 +18,7 @@ def toggle_dark_mode():
 if st.session_state.dark_mode:
     st.markdown("""
         <style>
-            body, .stApp {
-                background-color: #0E1117;
-                color: white;
-            }
+            body, .stApp { background-color: #0E1117; color: white; }
             .card {
                 background-color: #1E1E1E;
                 padding: 20px;
@@ -29,9 +26,12 @@ if st.session_state.dark_mode:
                 margin-bottom: 15px;
                 box-shadow: 0 0 10px rgba(255,255,255,0.1);
             }
-            .stTextInput, .stSelectbox, .stDateInput, .stTextArea {
-                background-color: #1E1E1E !important;
-                color: white !important;
+            .visit-card {
+                background-color: #141414;
+                padding: 15px;
+                border-radius: 10px;
+                margin-bottom: 10px;
+                border-left: 4px solid #00BFFF;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -44,6 +44,13 @@ else:
                 border-radius: 12px;
                 margin-bottom: 15px;
                 box-shadow: 0 0 6px rgba(0,0,0,0.1);
+            }
+            .visit-card {
+                background-color: #FFFFFF;
+                padding: 15px;
+                border-radius: 10px;
+                margin-bottom: 10px;
+                border-left: 4px solid #2196F3;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -77,10 +84,10 @@ if patient_id:
 
     if not patient_data.empty:
         patient = patient_data.iloc[0]
-
         st.header(f"👤 {patient['Full Name']}")
         st.caption(f"🆔 ID: {patient_id}")
 
+        # ----- PERSONAL INFO CARD -----
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.subheader("Personal Information")
         cols = st.columns(2)
@@ -94,17 +101,29 @@ if patient_id:
             st.markdown(f"**Occupation:** {patient.get('Occupation', 'N/A')}")
         st.markdown('</div>', unsafe_allow_html=True)
 
+        # ----- VISIT HISTORY -----
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("Visit Details")
-        visit_details = patient_data.to_dict(orient="records")[0]
-        for key, value in visit_details.items():
-            if key not in ["Full Name", "Patient ID", "Date of Birth", "Age (in years)", "Sex", "Address", "Occupation", "Marital Status"]:
-                st.markdown(f"**{key}:** {value if value else '—'}")
+        st.subheader("🩹 Visit History")
+
+        visits = df[df["Full Name"] == patient["Full Name"]].sort_values(by="Date of Visit", ascending=False)
+        if visits.empty:
+            st.info("No visits recorded yet.")
+        else:
+            for _, visit in visits.iterrows():
+                st.markdown('<div class="visit-card">', unsafe_allow_html=True)
+                st.markdown(f"**Visit Date:** {visit.get('Date of Visit', 'N/A')}")
+                st.markdown(f"**Doctor:** {visit.get(\"Doctor's Name\", 'N/A')}")
+                st.markdown(f"**Chief Complaint:** {visit.get('Cheif Compliant', 'N/A')}")
+                st.markdown(f"**Diagnosis:** {visit.get('Final Diagnosis', 'N/A')}")
+                st.markdown(f"**Medications Prescribed:** {visit.get('Medications Prescribed', 'N/A')}")
+                st.markdown(f"**Follow-Up Date:** {visit.get('Follow-Up Date', 'N/A')}")
+                st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Add New Visit
+        # ----- ADD NEW VISIT -----
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.subheader("➕ Add New Visit")
+
         with st.form(f"add_visit_{patient_id}"):
             visit_data = {}
             for col in df.columns:
