@@ -35,6 +35,8 @@ def load_data():
         visits = sheet_visits.get_all_records()
         df_patients = pd.DataFrame(patients)
         df_visits = pd.DataFrame(visits)
+        df_patients.columns = df_patients.columns.str.strip()
+        df_visits.columns = df_visits.columns.str.strip()
         return df_patients, df_visits
     except Exception as e:
         st.error(f"❌ Failed to load sheets: {e}")
@@ -111,7 +113,12 @@ if not patients_df.empty:
 
             st.markdown("### 🩺 Visits")
 
-            patient_visits = visits_df[visits_df["Patient ID"] == row.get("Patient ID")]
+            if "Patient ID" in visits_df.columns:
+                patient_visits = visits_df[visits_df["Patient ID"] == row.get("Patient ID")]
+            else:
+                st.error("❌ 'Patient ID' column not found in Visits sheet.")
+                patient_visits = pd.DataFrame()
+
             if not patient_visits.empty:
                 for _, visit in patient_visits.sort_values("Date of Visit", ascending=False).iterrows():
                     with st.expander(f"📅 {visit.get('Date of Visit', 'Unknown')} — {visit.get('Visit Type', 'N/A')}", expanded=False):
