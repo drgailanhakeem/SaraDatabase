@@ -4,9 +4,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, date, time
 
-# ===============================
-# Google Sheets Setup
-# ===============================
+# ===================================
+# Google Sheets Connection
+# ===================================
 SCOPE = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
@@ -19,12 +19,20 @@ try:
     )
     client = gspread.authorize(creds)
 
-    sheet_responses = client.open("SaraDatabase").worksheet("Responses")
-    sheet_visits = client.open("Sara Patient Database").worksheet("Visits")
+    # Connect via sheet_id instead of name
+    sheet_id = st.secrets["sheet"]["sheet_id"]
+    responses_name = st.secrets["sheet"]["responses_name"]
+    visits_name = st.secrets["sheet"]["visits_name"]
+
+    sheet_responses = client.open_by_key(sheet_id).worksheet(responses_name)
+    sheet_visits = client.open_by_key(sheet_id).worksheet(visits_name)
+
+    st.success("✅ Connected successfully to Google Sheets!")
 
 except Exception as e:
     st.error(f"❌ Failed to connect to Google Sheets: {e}")
     st.stop()
+
 
 # ===============================
 # Load Data
