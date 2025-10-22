@@ -35,8 +35,9 @@ except Exception as e:
     st.error(f"❌ Failed to load data: {e}")
     st.stop()
 
-st.success("✅ Connected successfully to Google Sheets!")
-
+# Always define aliases for compatibility
+patients_df = df_patients
+visits_df = df_visits
 
 # Helper: Safe key generator
 def safe_key(prefix, identifier):
