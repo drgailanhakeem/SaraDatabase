@@ -26,7 +26,7 @@ sheet_file = client.open_by_key(SHEET_ID)
 def load_sheet(sheet_name):
     sheet = sheet_file.worksheet(sheet_name)
     df = pd.DataFrame(sheet.get_all_records())
-    df.columns = df.columns.str.strip()
+    df.columns = [str(c).strip() for c in df.columns]
     return df
 
 try:
@@ -36,7 +36,7 @@ except Exception as e:
     st.error(f"❌ Failed to load sheets: {e}")
     st.stop()
 
-# === Expected Columns (same for both) ===
+# === Expected Columns ===
 expected_columns = [
     "Timestamp","Full Name","Date of Birth","Age (in years)","Sex","Address",
     "Date of Visit","Time of Visit","Doctor's Name","Cheif Compliant","Duration of Compliant",
@@ -49,7 +49,6 @@ expected_columns = [
     "Doctor's Notes / Impression","Visit Type","Submitter Name","Patient ID"
 ]
 
-# === Check structure ===
 for df_name, df in {"Responses": responses_df, "Visits": visits_df}.items():
     missing = [c for c in expected_columns if c not in df.columns]
     if missing:
@@ -61,33 +60,26 @@ st.title("🩺 Sara Patient Database")
 
 menu = st.sidebar.radio("Menu", ["View Patients", "Add Patient", "Add Visit"])
 
-# --- View Patients ---
 if menu == "View Patients":
     st.subheader("Patient Records (Responses Sheet)")
     st.dataframe(responses_df)
 
-# --- Add Patient ---
 elif menu == "Add Patient":
     st.subheader("➕ Add Patient")
-
     with st.form("add_patient_form"):
         form_data = {col: st.text_input(col) for col in expected_columns}
         submitted = st.form_submit_button("Submit")
-
         if submitted:
             sheet = sheet_file.worksheet(SHEET_NAME_RESPONSES)
             sheet.append_row([form_data.get(c, "") for c in expected_columns])
             st.success("✅ Patient added successfully!")
             st.cache_data.clear()
 
-# --- Add Visit ---
 elif menu == "Add Visit":
     st.subheader("🩺 Add Visit")
-
     with st.form("add_visit_form"):
         form_data = {col: st.text_input(col) for col in expected_columns}
         submitted = st.form_submit_button("Submit")
-
         if submitted:
             sheet = sheet_file.worksheet(SHEET_NAME_VISITS)
             sheet.append_row([form_data.get(c, "") for c in expected_columns])
