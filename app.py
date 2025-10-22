@@ -10,7 +10,7 @@ SHEET_NAME = "SaraDatabase"  # name of your spreadsheet
 PATIENT_SHEET = "Responses"
 VISIT_SHEET = "Visits"
 
-st.set_page_config(page_title="Sara Patient Database", layout="wide")
+st.set_page_config(page_title="SaraDatabase", layout="wide")
 
 # ============================
 # 🧠 CONNECT TO GOOGLE SHEETS
