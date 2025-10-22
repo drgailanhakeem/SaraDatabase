@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 # ============================
 # 🔧 CONFIGURATION
 # ============================
-SHEET_NAME = "Sara Patient Database"  # name of your spreadsheet
+SHEET_NAME = "SaraDatabase"  # name of your spreadsheet
 PATIENT_SHEET = "Responses"
 VISIT_SHEET = "Visits"
 
