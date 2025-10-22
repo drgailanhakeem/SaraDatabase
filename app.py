@@ -12,13 +12,13 @@ scope = [
 credentials = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
 client = gspread.authorize(credentials)
 
-# ✅ Use your actual sheet names
-SHEET_PATIENTS = "Responses"
-SHEET_VISITS = "Visits"
+# ✅ The actual spreadsheet title (the whole Google Sheets file name)
+SPREADSHEET_NAME = "Sara Database"  # <-- change this to your actual spreadsheet file name
 
 try:
-    sheet_patients = client.open(SHEET_PATIENTS).sheet1
-    sheet_visits = client.open(SHEET_VISITS).sheet1
+    spreadsheet = client.open(SPREADSHEET_NAME)
+    sheet_patients = spreadsheet.worksheet("Responses")  # first tab
+    sheet_visits = spreadsheet.worksheet("Visits")       # second tab
 except Exception as e:
     st.error(f"❌ Failed to load sheets: {e}")
     st.stop()
@@ -36,6 +36,7 @@ except Exception as e:
     st.stop()
 
 st.success("✅ Connected successfully to Google Sheets!")
+
 
 # Helper: Safe key generator
 def safe_key(prefix, identifier):
