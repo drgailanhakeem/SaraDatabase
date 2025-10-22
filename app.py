@@ -19,7 +19,7 @@ try:
     )
     client = gspread.authorize(creds)
 
-    sheet_responses = client.open("Sara Patient Database").worksheet("Responses")
+    sheet_responses = client.open("SaraDatabase").worksheet("Responses")
     sheet_visits = client.open("Sara Patient Database").worksheet("Visits")
 
 except Exception as e:
