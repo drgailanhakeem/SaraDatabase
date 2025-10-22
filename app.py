@@ -13,7 +13,7 @@ SHEET_NAME_VISITS = "Visits"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPES)
 client = gspread.authorize(creds)
-sheet = client.open_by_url(SHEET_URL)
+sheet = client.open_by_key("1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0")
 
 def load_sheet(name):
     try:
