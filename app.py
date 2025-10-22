@@ -2,8 +2,9 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date, time
 
+# --- PAGE CONFIG ---
 st.set_page_config(page_title="Sara Patient Database", layout="wide")
 
 # --- DARK MODE TOGGLE ---
@@ -21,68 +22,87 @@ if dark_mode:
         </style>
     """, unsafe_allow_html=True)
 
-# --- AUTH ---
+# --- AUTHENTICATION ---
 try:
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
     client = gspread.authorize(creds)
     sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet(st.secrets["sheet"]["sheet_name"])
-    visits_sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet("Visits")
     st.success("✅ Successfully connected to Google Sheet")
 except Exception as e:
     st.error(f"❌ Google Sheets Connection Failed: {e}")
     st.stop()
 
-
-# --- CACHE SHEET DATA ---
-@st.cache_data(ttl=300)
-def load_data():
-    patients = pd.DataFrame(sheet.get_all_records())
-    visits = pd.DataFrame(visits_sheet.get_all_records())
-    return patients, visits
-
-
+# --- LOAD DATA ---
 try:
-    df, visits_df = load_data()
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")
     st.stop()
 
 st.title("🩺 Sara Patient Database")
 
-# --- SEARCH ---
+# --- SEARCH PATIENT ---
 st.subheader("🔍 Search Patients")
 search_query = st.text_input("Search by Full Name").strip().lower()
-filtered_df = df[df["Full Name"].str.lower().str.contains(search_query)] if search_query else df
 
-# --- DISPLAY PATIENTS ---
+if search_query:
+    filtered_df = df[df["Full Name"].str.lower().str.contains(search_query)]
+else:
+    filtered_df = df
+
+# --- DISPLAY PATIENTS NICELY ---
 if not filtered_df.empty:
-    for _, row in filtered_df.iterrows():
-        patient_id = row.get("Patient ID", "Unknown")
-        with st.expander(f"👤 {row['Full Name']} (ID: {patient_id})"):
+    for i, row in filtered_df.iterrows():
+        patient_id = row.get("Patient ID", f"pt{i+1}")  # auto-generate if missing
+
+        with st.expander(f"👤 {row['Full Name']} (Age: {row.get('Age (in years)', 'N/A')})"):
             col1, col2 = st.columns(2)
             with col1:
-                for col in df.columns[:len(df.columns)//2]:
-                    st.markdown(f"**{col}:** {row.get(col, '')}")
+                st.markdown(f"**Patient ID:** {patient_id}")
+                st.markdown(f"**Sex:** {row.get('Sex', '')}")
+                st.markdown(f"**Address:** {row.get('Address', '')}")
+                st.markdown(f"**Date of Visit:** {row.get('Date of Visit', '')}")
+                st.markdown(f"**Doctor's Name:** {row.get('Doctor\'s Name', '')}")
+                st.markdown(f"**Chief Complaint:** {row.get('Cheif Compliant', '')}")
+                st.markdown(f"**Onset:** {row.get('Onset', '')}")
             with col2:
-                for col in df.columns[len(df.columns)//2:]:
-                    st.markdown(f"**{col}:** {row.get(col, '')}")
+                st.markdown(f"**Working Diagnosis:** {row.get('Working Diagnosis', '')}")
+                st.markdown(f"**Final Diagnosis:** {row.get('Final Diagnosis', '')}")
+                st.markdown(f"**Medications Prescribed:** {row.get('Medications Prescribed', '')}")
+                st.markdown(f"**Follow-Up Date:** {row.get('Follow-Up Date', '')}")
+                st.markdown(f"**Doctor's Notes / Impression:** {row.get('Doctor\'s Notes / Impression', '')}")
 
-            # --- Display Visits ---
-            if not visits_df.empty:
-                patient_visits = visits_df[visits_df["Patient ID"] == patient_id]
-                if not patient_visits.empty:
-                    st.markdown("### 🩹 Patient Visits")
-                    for _, visit in patient_visits.iterrows():
-                        with st.container():
-                            st.markdown(f"**Visit ID:** {visit.get('Visit ID', 'N/A')}")
-                            st.markdown(f"**Date of Visit:** {visit.get('Date of Visit', 'N/A')}")
-                            st.markdown(f"**Doctor:** {visit.get('Doctor\'s Name', 'N/A')}")
-                            st.markdown(f"**Diagnosis:** {visit.get('Final Diagnosis', 'N/A')}")
-                            st.markdown(f"**Notes:** {visit.get('Doctor\'s Notes / Impression', 'N/A')}")
-                            st.divider()
-                else:
-                    st.info("No visits recorded yet for this patient.")
+            # --- DELETE PATIENT BUTTON ---
+            st.markdown("---")
+            delete_col1, delete_col2 = st.columns([1, 4])
+            with delete_col1:
+                if st.button(f"🗑️ Delete {row['Full Name']}", key=f"delete_{patient_id}"):
+                    confirm = st.warning(
+                        f"Are you sure you want to permanently delete all data for **{row['Full Name']}**?",
+                        icon="⚠️"
+                    )
+                    if st.button(f"✅ Confirm Delete {row['Full Name']}", key=f"confirm_delete_{patient_id}"):
+                        try:
+                            # Reload sheet to ensure fresh data
+                            all_data = sheet.get_all_records()
+                            df_all = pd.DataFrame(all_data)
+
+                            # Find all matching rows by Patient ID (preferred) or by Full Name
+                            if "Patient ID" in df_all.columns and patient_id in df_all["Patient ID"].values:
+                                indexes_to_delete = df_all.index[df_all["Patient ID"] == patient_id].tolist()
+                            else:
+                                indexes_to_delete = df_all.index[df_all["Full Name"] == row["Full Name"]].tolist()
+
+                            # Reverse so deleting rows doesn't shift indexes
+                            for idx in sorted(indexes_to_delete, reverse=True):
+                                sheet.delete_rows(idx + 2)  # +2 for header row + 1-indexed sheet
+
+                            st.success(f"✅ Deleted all records for {row['Full Name']}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error deleting patient: {e}")
 else:
     st.info("No patients found.")
 
@@ -92,17 +112,30 @@ with st.expander("➕ Add New Patient"):
     new_data = {}
     columns = list(df.columns)
 
+    # Auto-generate unique ID
+    if "Patient ID" in df.columns and not df.empty:
+        next_id = f"pt{len(df) + 1}"
+    else:
+        next_id = "pt1"
+    new_data["Patient ID"] = next_id
+
     for i, col in enumerate(columns):
+        if col == "Patient ID":
+            continue  # skip, already set
+
         key = f"patient_{i}"
         if col.lower() in ["timestamp"]:
             new_data[col] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         elif "date of birth" in col.lower():
-            # Allow older years (1900–2025)
-            new_data[col] = st.date_input(col, min_value=datetime(1900, 1, 1).date(), max_value=datetime(2025, 12, 31).date(), key=key)
+            new_data[col] = st.date_input(col, min_value=date(1900, 1, 1), max_value=date.today(), key=key)
+        elif "time of visit" in col.lower():
+            new_data[col] = st.time_input(col, key=key).strftime("%H:%M:%S")
+        elif "duration" in col.lower():
+            new_data[col] = st.text_input(col, placeholder="e.g., 2 weeks, 3 months", key=key)
+        elif "past medical history" in col.lower():
+            new_data[col] = st.selectbox(col, ["None", "Hypertension", "Diabetes", "Asthma", "Other"], key=key)
         elif "date" in col.lower():
             new_data[col] = st.date_input(col, key=key)
-        elif "time" in col.lower():
-            new_data[col] = st.time_input(col, key=key)
         elif "sex" in col.lower():
             new_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
         elif "smoking" in col.lower():
@@ -113,79 +146,53 @@ with st.expander("➕ Add New Patient"):
             new_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
         elif "marital" in col.lower():
             new_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
-        elif "past medical history" in col.lower():
-            new_data[col] = st.multiselect(col, ["Diabetes", "Hypertension", "Asthma", "Heart Disease", "Epilepsy", "None"], key=key)
-        elif "duration" in col.lower():
-            new_data[col] = st.text_input(col + " (e.g. 3 days / 2 weeks / 6 months)", key=key)
         else:
             new_data[col] = st.text_input(col, key=key)
 
     if st.button("✅ Add Patient"):
         try:
-            # Convert all dates/times/multiselects to strings
+            # Convert all date/time objects to strings
             for k, v in new_data.items():
-                if isinstance(v, (datetime, pd.Timestamp)):
-                    new_data[k] = v.strftime("%Y-%m-%d %H:%M:%S")
-                elif hasattr(v, "isoformat"):  # date or time
-                    new_data[k] = v.isoformat()
-                elif isinstance(v, list):
-                    new_data[k] = ", ".join(v)
-                else:
-                    new_data[k] = str(v)
-
-            # Generate a unique patient ID
-            patient_id = f"pt{len(df) + 1}"
-            new_data["Patient ID"] = patient_id
-
+                if isinstance(v, (datetime, date)):
+                    new_data[k] = v.strftime("%Y-%m-%d")
             sheet.append_row(list(new_data.values()))
-            st.success(f"✅ New patient added successfully! (ID: {patient_id})")
+            st.success(f"✅ New patient {new_data.get('Full Name', '')} added successfully!")
             st.rerun()
         except Exception as e:
             st.error(f"Error adding patient: {e}")
 
-
 # --- ADD NEW VISIT ---
-with st.expander("🩺 Add New Visit"):
-    st.subheader("➕ Record a Visit")
+with st.expander("🩹 Add New Visit"):
+    st.write("Fill in visit details for an existing patient:")
+    visit_data = {}
+    columns = list(df.columns)
 
-    if "Visit ID" in visits_df.columns and not visits_df.empty:
-        last_visit_id_num = max([int(str(i).replace("vt", "")) for i in visits_df["Visit ID"].astype(str) if str(i).startswith("vt")] or [0])
-        new_visit_id = f"vt{last_visit_id_num + 1:03d}"
-    else:
-        new_visit_id = "vt001"
-
-    st.markdown(f"**🆔 Visit ID:** `{new_visit_id}`")
-
-    visit_data = {"Visit ID": new_visit_id}
-
-    patient_names = df["Full Name"].tolist() if not df.empty else []
-    selected_patient = st.selectbox("Select Patient", patient_names)
-    if selected_patient:
-        patient_id = df.loc[df["Full Name"] == selected_patient, "Patient ID"].values[0]
-        visit_data["Patient ID"] = patient_id
-
-    for col in visits_df.columns:
-        if col in ["Visit ID", "Patient ID", "Timestamp"]:
-            continue
-
-        key = f"visit_{col.replace(' ', '_')}"
-
-        if "date" in col.lower():
+    for i, col in enumerate(columns):
+        key = f"visit_{i}"  # Unique key for visit form
+        if col.lower() in ["timestamp"]:
+            visit_data[col] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        elif "date" in col.lower():
             visit_data[col] = st.date_input(col, key=key)
-        elif "time" in col.lower():
-            visit_data[col] = st.time_input(col, key=key).strftime("%H:%M")
         elif "sex" in col.lower():
             visit_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
-        elif "duration" in col.lower():
-            visit_data[col] = st.text_input(col, placeholder="e.g., 3 days", key=key)
+        elif "smoking" in col.lower():
+            visit_data[col] = st.selectbox(col, ["Never", "Former", "Current"], key=key)
+        elif "alcohol" in col.lower():
+            visit_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"], key=key)
+        elif "substance" in col.lower():
+            visit_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
+        elif "marital" in col.lower():
+            visit_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
         else:
             visit_data[col] = st.text_input(col, key=key)
 
     if st.button("💾 Add Visit"):
         try:
-            visits_sheet.append_row(list(visit_data.values()))
-            st.success(f"Visit for {selected_patient} added successfully!")
-            st.cache_data.clear()
+            for k, v in visit_data.items():
+                if isinstance(v, (datetime, date)):
+                    visit_data[k] = v.strftime("%Y-%m-%d")
+            sheet.append_row(list(visit_data.values()))
+            st.success("✅ New visit added successfully!")
             st.rerun()
         except Exception as e:
             st.error(f"Error adding visit: {e}")
