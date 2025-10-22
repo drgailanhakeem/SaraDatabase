@@ -152,10 +152,9 @@ if not filtered_df.empty:
                 st.markdown(f"**Date of Birth:** {row.get('Date of Birth', '')}")
             with col2:
                 st.markdown(f"**Date of Visit:** {row.get('Date of Visit', '')}")
-                st.markdown(f"**Doctor's Name:** {row.get('Doctor\\'s Name', '')}")
+                st.markdown(f"**Doctor's Name:** {row.get(\"Doctor's Name\", '')}")
                 st.markdown(f"**Chief Complaint:** {row.get('Cheif Compliant', '')}")
                 st.markdown(f"**Final Diagnosis:** {row.get('Final Diagnosis', '')}")
-
             st.markdown("---")
             # First click shows confirm; second click performs deletion
             if 'delete_clicked' not in st.session_state:
