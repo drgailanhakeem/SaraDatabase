@@ -13,7 +13,7 @@ credentials = Credentials.from_service_account_info(st.secrets["gcp_service_acco
 client = gspread.authorize(credentials)
 
 # ✅ The actual spreadsheet title (the whole Google Sheets file name)
-SPREADSHEET_NAME = "Sara Database"  # <-- change this to your actual spreadsheet file name
+SPREADSHEET_NAME = "Patient Form (Responses)"  # <-- change this to your actual spreadsheet file name
 
 try:
     spreadsheet = client.open(SPREADSHEET_NAME)
