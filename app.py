@@ -1,27 +1,41 @@
 import streamlit as st
-import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import pandas as pd
 from datetime import datetime
 
-# Google Sheets setup
-SHEET_NAME = "Responses"
+# --- Google Sheets Setup ---
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+credentials = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+client = gspread.authorize(credentials)
+
+# ✅ Use your actual sheet names
+SHEET_PATIENTS = "Responses"
 SHEET_VISITS = "Visits"
 
-scope = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
-client = gspread.authorize(creds)
-sheet_patients = client.open(SHEET_NAME).sheet1
-sheet_visits = client.open(SHEET_VISITS).sheet1
+try:
+    sheet_patients = client.open(SHEET_PATIENTS).sheet1
+    sheet_visits = client.open(SHEET_VISITS).sheet1
+except Exception as e:
+    st.error(f"❌ Failed to load sheets: {e}")
+    st.stop()
 
-# Load Data
-@st.cache_data(ttl=60)
-def load_data():
-    patients = pd.DataFrame(sheet_patients.get_all_records())
-    visits = pd.DataFrame(sheet_visits.get_all_records())
-    return patients, visits
+# --- Load Data ---
+def load_data(sheet):
+    records = sheet.get_all_records()
+    return pd.DataFrame(records)
 
-patients_df, visits_df = load_data()
+try:
+    df_patients = load_data(sheet_patients)
+    df_visits = load_data(sheet_visits)
+except Exception as e:
+    st.error(f"❌ Failed to load data: {e}")
+    st.stop()
+
+st.success("✅ Connected successfully to Google Sheets!")
 
 # Helper: Safe key generator
 def safe_key(prefix, identifier):
