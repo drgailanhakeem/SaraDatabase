@@ -46,19 +46,68 @@ if patient_id:
     patient = patient.iloc[0]
     st.header(f"{patient.get('Full Name', 'Unknown')} (ID: {patient_id})")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"**Sex:** {patient.get('Sex', '')}")
-        st.markdown(f"**Age:** {patient.get('Age (in years)', '')}")
-        st.markdown(f"**Date of Birth:** {patient.get('Date of Birth', '')}")
-        st.markdown(f"**Address:** {patient.get('Address', '')}")
-        st.markdown(f"**Marital Status:** {patient.get('Marital Status', '')}")
-    with col2:
-        st.markdown(f"**Date of Visit:** {patient.get('Date of Visit', '')}")
-        st.markdown(f"**Doctor's Name:** {patient.get('Doctor\'s Name', '')}")
-        st.markdown(f"**Working Diagnosis:** {patient.get('Working Diagnosis', '')}")
-        st.markdown(f"**Final Diagnosis:** {patient.get('Final Diagnosis', '')}")
-        st.markdown(f"**Doctor's Notes / Impression:** {patient.get('Doctor\'s Notes / Impression', '')}")
+    # --- Display ALL patient fields dynamically ---
+    st.subheader("📋 Patient Information")
+    cols = st.columns(2)
+    for i, (col_name, value) in enumerate(patient.items()):
+        if pd.isna(value) or str(value).strip() == "":
+            continue
+        with cols[i % 2]:
+            st.markdown(f"**{col_name}:** {value}")
+
+    st.divider()
+
+    # --- DELETE PATIENT ---
+    if st.button("🗑️ Delete Patient"):
+        try:
+            row_index = df.index[df["Patient ID"] == patient_id][0] + 2
+            sheet.delete_rows(row_index)
+            st.success(f"✅ Deleted {patient.get('Full Name', 'patient')}")
+            st.query_params.clear()
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error deleting patient: {e}")
+
+    # --- ADD VISIT SECTION ---
+    st.divider()
+    with st.expander("➕ Add Visit"):
+        st.subheader("Add New Visit")
+        visit_data = {}
+        for col in df.columns:
+            if col.lower() in ["timestamp", "patient id"]:
+                continue
+            key = f"visit_{col}"
+            if "date" in col.lower():
+                visit_data[col] = st.date_input(col, key=key)
+            elif "time" in col.lower():
+                visit_data[col] = st.time_input(col, key=key)
+            elif "sex" in col.lower():
+                visit_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
+            elif "smoking" in col.lower():
+                visit_data[col] = st.selectbox(col, ["Never", "Former", "Current"], key=key)
+            elif "alcohol" in col.lower():
+                visit_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"], key=key)
+            elif "substance" in col.lower():
+                visit_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
+            elif "marital" in col.lower():
+                visit_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
+            elif "past medical history" in col.lower():
+                visit_data[col] = st.selectbox(col, ["None", "Diabetes", "Hypertension", "Cardiac Disease", "Asthma", "Other"], key=key)
+            else:
+                visit_data[col] = st.text_input(col, key=key)
+
+        if st.button("💾 Save Visit"):
+            try:
+                visit_data["Patient ID"] = patient_id
+                visit_data = {k: str(v) for k, v in visit_data.items()}
+                visits_sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet("Visits")
+                visits_sheet.append_row(list(visit_data.values()))
+                st.success("✅ Visit added successfully!")
+            except Exception as e:
+                st.error(f"❌ Error adding visit: {e}")
+
+    st.divider()
+    st.markdown("[⬅ Back to Home](?)")
 
     # --- DELETE PATIENT ---
     if st.button("🗑️ Delete Patient"):
