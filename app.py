@@ -88,54 +88,61 @@ else:
 
 # --- ADD NEW PATIENT ---
 with st.expander("➕ Add New Patient"):
-    st.subheader("🧾 New Patient Registration")
+    st.write("Fill in the patient details below:")
+    new_data = {}
+    columns = list(df.columns)
 
-    if "Patient ID" in df.columns and not df.empty:
-        last_id_num = max([int(str(i).replace("pt", "")) for i in df["Patient ID"].astype(str) if str(i).startswith("pt")] or [0])
-        new_patient_id = f"pt{last_id_num + 1:03d}"
-    else:
-        new_patient_id = "pt001"
-
-    st.markdown(f"**🆔 Patient ID:** `{new_patient_id}`")
-
-    new_data = {"Patient ID": new_patient_id}
-
-    for col in df.columns:
-        if col in ["Patient ID", "Timestamp"]:
-            continue
-
-        key = f"new_{col.replace(' ', '_')}"
-
-        if "date" in col.lower():
-            new_data[col] = st.date_input(col, min_value=pd.Timestamp(1900, 1, 1), max_value=pd.Timestamp.today(), key=key)
+    for i, col in enumerate(columns):
+        key = f"patient_{i}"
+        if col.lower() in ["timestamp"]:
+            new_data[col] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        elif "date of birth" in col.lower():
+            # Allow older years (1900–2025)
+            new_data[col] = st.date_input(col, min_value=datetime(1900, 1, 1).date(), max_value=datetime(2025, 12, 31).date(), key=key)
+        elif "date" in col.lower():
+            new_data[col] = st.date_input(col, key=key)
         elif "time" in col.lower():
-            new_data[col] = st.time_input(col, key=key).strftime("%H:%M")
+            new_data[col] = st.time_input(col, key=key)
         elif "sex" in col.lower():
             new_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
-        elif "marital" in col.lower():
-            new_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
         elif "smoking" in col.lower():
             new_data[col] = st.selectbox(col, ["Never", "Former", "Current"], key=key)
         elif "alcohol" in col.lower():
             new_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"], key=key)
         elif "substance" in col.lower():
             new_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
-        elif "past medical" in col.lower():
-            new_data[col] = st.multiselect(col, ["Diabetes", "Hypertension", "Asthma", "Heart Disease", "Other"], key=key)
-            new_data[col] = ", ".join(new_data[col])
+        elif "marital" in col.lower():
+            new_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
+        elif "past medical history" in col.lower():
+            new_data[col] = st.multiselect(col, ["Diabetes", "Hypertension", "Asthma", "Heart Disease", "Epilepsy", "None"], key=key)
         elif "duration" in col.lower():
-            new_data[col] = st.text_input(col, placeholder="e.g., 2 weeks", key=key)
+            new_data[col] = st.text_input(col + " (e.g. 3 days / 2 weeks / 6 months)", key=key)
         else:
             new_data[col] = st.text_input(col, key=key)
 
     if st.button("✅ Add Patient"):
         try:
+            # Convert all dates/times/multiselects to strings
+            for k, v in new_data.items():
+                if isinstance(v, (datetime, pd.Timestamp)):
+                    new_data[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+                elif hasattr(v, "isoformat"):  # date or time
+                    new_data[k] = v.isoformat()
+                elif isinstance(v, list):
+                    new_data[k] = ", ".join(v)
+                else:
+                    new_data[k] = str(v)
+
+            # Generate a unique patient ID
+            patient_id = f"pt{len(df) + 1}"
+            new_data["Patient ID"] = patient_id
+
             sheet.append_row(list(new_data.values()))
-            st.success(f"Patient {new_data.get('Full Name', 'Unknown')} added successfully!")
-            st.cache_data.clear()
+            st.success(f"✅ New patient added successfully! (ID: {patient_id})")
             st.rerun()
         except Exception as e:
             st.error(f"Error adding patient: {e}")
+
 
 # --- ADD NEW VISIT ---
 with st.expander("🩺 Add New Visit"):
