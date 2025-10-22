@@ -2,43 +2,38 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
-from datetime import datetime
+import uuid
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Sara Patient Database", layout="wide")
+# --- GOOGLE SHEETS CONNECTION ---
+scope = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+client = gspread.authorize(creds)
 
-# --- AUTHENTICATION ---
-try:
-    scope = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
-    client = gspread.authorize(creds)
-    sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet(st.secrets["sheet"]["sheet_name"])
-    st.success("✅ Connected to Google Sheet")
-except Exception as e:
-    st.error(f"❌ Google Sheets Connection Failed: {e}")
-    st.stop()
+sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet(st.secrets["sheet"]["sheet_name"])
+data = sheet.get_all_records()
+df = pd.DataFrame(data)
 
-# --- LOAD DATA ---
-try:
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-except Exception as e:
-    st.error(f"❌ Error loading data: {e}")
-    st.stop()
+# --- FUNCTIONS ---
+def generate_patient_id():
+    """Generate unique patient ID like pt_XXXX."""
+    return f"pt_{uuid.uuid4().hex[:6]}"
 
-# Ensure patient IDs exist
-if "Patient ID" not in df.columns:
-    df.insert(0, "Patient ID", [f"pt{i+1}" for i in range(len(df))])
+def get_patient_by_id(patient_id):
+    """Return patient row based on ID."""
+    if "Patient ID" in df.columns:
+        return df[df["Patient ID"] == patient_id]
+    return pd.DataFrame()
 
-# --- ROUTING ---
+# --- APP TITLE ---
+st.title("🩺 Sara Patient Database")
+
+# --- QUERY PARAMS ---
 params = st.query_params
 patient_id = params.get("id", [None])[0] if isinstance(params.get("id"), list) else params.get("id")
 
 # --- PATIENT PROFILE PAGE ---
 if patient_id:
-    st.title("👤 Patient Profile")
-
-    patient = df[df["Patient ID"] == patient_id]
+    patient = get_patient_by_id(patient_id)
     if patient.empty:
         st.error("❌ Patient not found.")
         st.stop()
@@ -46,7 +41,7 @@ if patient_id:
     patient = patient.iloc[0]
     st.header(f"{patient.get('Full Name', 'Unknown')} (ID: {patient_id})")
 
-    # --- Display ALL patient fields dynamically ---
+    # --- DISPLAY ALL PATIENT DATA ---
     st.subheader("📋 Patient Information")
     cols = st.columns(2)
     for i, (col_name, value) in enumerate(patient.items()):
@@ -57,8 +52,8 @@ if patient_id:
 
     st.divider()
 
-    # --- DELETE PATIENT ---
-    if st.button("🗑️ Delete Patient"):
+    # --- DELETE PATIENT BUTTON ---
+    if st.button("🗑️ Delete Patient", key=f"delete_{patient_id}"):
         try:
             row_index = df.index[df["Patient ID"] == patient_id][0] + 2
             sheet.delete_rows(row_index)
@@ -68,7 +63,7 @@ if patient_id:
         except Exception as e:
             st.error(f"❌ Error deleting patient: {e}")
 
-    # --- ADD VISIT SECTION ---
+    # --- ADD VISIT EXPANDER ---
     st.divider()
     with st.expander("➕ Add Visit"):
         st.subheader("Add New Visit")
@@ -76,7 +71,7 @@ if patient_id:
         for col in df.columns:
             if col.lower() in ["timestamp", "patient id"]:
                 continue
-            key = f"visit_{col}"
+            key = f"visit_{col}_{patient_id}"
             if "date" in col.lower():
                 visit_data[col] = st.date_input(col, key=key)
             elif "time" in col.lower():
@@ -96,59 +91,7 @@ if patient_id:
             else:
                 visit_data[col] = st.text_input(col, key=key)
 
-        if st.button("💾 Save Visit"):
-            try:
-                visit_data["Patient ID"] = patient_id
-                visit_data = {k: str(v) for k, v in visit_data.items()}
-                visits_sheet = client.open_by_key(st.secrets["sheet"]["sheet_id"]).worksheet("Visits")
-                visits_sheet.append_row(list(visit_data.values()))
-                st.success("✅ Visit added successfully!")
-            except Exception as e:
-                st.error(f"❌ Error adding visit: {e}")
-
-    st.divider()
-    st.markdown("[⬅ Back to Home](?)")
-
-    # --- DELETE PATIENT ---
-    if st.button("🗑️ Delete Patient"):
-        try:
-            row_index = df.index[df["Patient ID"] == patient_id][0] + 2
-            sheet.delete_rows(row_index)
-            st.success(f"✅ Deleted {patient.get('Full Name', 'patient')}")
-            st.query_params.clear()
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Error deleting patient: {e}")
-
-    # --- ADD VISIT SECTION ---
-    st.divider()
-    with st.expander("➕ Add Visit"):
-        st.subheader("Add New Visit")
-        visit_data = {}
-        for col in df.columns:
-            if col.lower() in ["timestamp", "patient id"]:
-                continue
-            key = f"visit_{col}"
-            if "date" in col.lower():
-                visit_data[col] = st.date_input(col, key=key)
-            elif "time" in col.lower():
-                visit_data[col] = st.time_input(col, key=key)
-            elif "sex" in col.lower():
-                visit_data[col] = st.selectbox(col, ["Male", "Female", "Other"], key=key)
-            elif "smoking" in col.lower():
-                visit_data[col] = st.selectbox(col, ["Never", "Former", "Current"], key=key)
-            elif "alcohol" in col.lower():
-                visit_data[col] = st.selectbox(col, ["No", "Occasionally", "Regularly"], key=key)
-            elif "substance" in col.lower():
-                visit_data[col] = st.selectbox(col, ["No", "Yes"], key=key)
-            elif "marital" in col.lower():
-                visit_data[col] = st.selectbox(col, ["Single", "Married", "Divorced", "Widowed"], key=key)
-            elif "past medical history" in col.lower():
-                visit_data[col] = st.selectbox(col, ["None", "Diabetes", "Hypertension", "Cardiac Disease", "Asthma", "Other"], key=key)
-            else:
-                visit_data[col] = st.text_input(col, key=key)
-
-        if st.button("💾 Save Visit"):
+        if st.button("💾 Save Visit", key=f"save_visit_{patient_id}"):
             try:
                 visit_data["Patient ID"] = patient_id
                 visit_data = {k: str(v) for k, v in visit_data.items()}
@@ -163,31 +106,32 @@ if patient_id:
 
 # --- HOMEPAGE ---
 else:
-    st.title("🩺 Sara Patient Database")
-
     st.subheader("🔍 Search Patients")
-    search_query = st.text_input("Search by Full Name").strip().lower()
 
+    # Search input
+    search_query = st.text_input("Search by Full Name")
+
+    # Filter patients
     if search_query:
-        filtered_df = df[df["Full Name"].str.lower().str.contains(search_query)]
+        filtered_df = df[df["Full Name"].str.contains(search_query, case=False, na=False)]
     else:
         filtered_df = df
 
-    if not filtered_df.empty:
-        for _, row in filtered_df.iterrows():
-            st.markdown(
-                f"### [{row['Full Name']} (Age: {row.get('Age (in years)', 'N/A')})](?id={row['Patient ID']})"
-            )
-    else:
-        st.info("No patients found.")
+    # Display patients
+    for _, row in filtered_df.iterrows():
+        patient_link = f"?id={row['Patient ID']}"
+        st.markdown(f"👤 [{row['Full Name']} (Age: {row.get('Age', 'N/A')})]({patient_link})")
+
+    st.divider()
 
     # --- ADD NEW PATIENT ---
     with st.expander("➕ Add New Patient"):
+        st.subheader("Add New Patient")
         new_data = {}
         for col in df.columns:
-            if col == "Patient ID":
+            if col.lower() in ["timestamp", "patient id"]:
                 continue
-            key = f"patient_{col}"
+            key = f"new_{col}"
             if "date" in col.lower():
                 new_data[col] = st.date_input(col, key=key)
             elif "time" in col.lower():
@@ -207,13 +151,12 @@ else:
             else:
                 new_data[col] = st.text_input(col, key=key)
 
-        if st.button("✅ Add Patient"):
+        if st.button("💾 Save New Patient", key="save_new_patient"):
             try:
-                new_id = f"pt{len(df) + 1}"
-                new_data["Patient ID"] = new_id
+                new_data["Patient ID"] = generate_patient_id()
                 new_data = {k: str(v) for k, v in new_data.items()}
                 sheet.append_row(list(new_data.values()))
-                st.success(f"✅ Added {new_data.get('Full Name', 'New Patient')} successfully!")
+                st.success(f"✅ New patient added successfully! (ID: {new_data['Patient ID']})")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error adding patient: {e}")
