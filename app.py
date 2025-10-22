@@ -4,22 +4,34 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 
 # ============================
-# 🔧 CONFIGURATION
+# ⚙️ CONFIGURATION
 # ============================
-SHEET_NAME = "SaraDatabase"  # name of your spreadsheet
-PATIENT_SHEET = "Responses"
-VISIT_SHEET = "Visits"
-
-st.set_page_config(page_title="SaraDatabase", layout="wide")
+st.set_page_config(page_title="Sara Patient Database", layout="wide")
 
 # ============================
-# 🧠 CONNECT TO GOOGLE SHEETS
+# 🔑 LOAD SECRETS
 # ============================
 try:
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    credentials = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
+    SHEET_ID = st.secrets["sheets"]["sheet_id"]
+    PATIENT_SHEET = st.secrets["sheets"]["patients_sheet"]
+    VISIT_SHEET = st.secrets["sheets"]["visits_sheet"]
+except Exception as e:
+    st.error(f"❌ Missing sheet info in secrets.toml: {e}")
+    st.stop()
+
+# ============================
+# 🔗 GOOGLE SHEETS CONNECTION
+# ============================
+try:
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    credentials = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=scopes
+    )
     client = gspread.authorize(credentials)
-    spreadsheet = client.open(SHEET_NAME)
+    spreadsheet = client.open_by_key(SHEET_ID)
     sheet_patients = spreadsheet.worksheet(PATIENT_SHEET)
     sheet_visits = spreadsheet.worksheet(VISIT_SHEET)
 except Exception as e:
@@ -27,20 +39,20 @@ except Exception as e:
     st.stop()
 
 # ============================
-# 📄 LOAD DATA
+# 📥 LOAD DATA
 # ============================
 try:
     patients_df = pd.DataFrame(sheet_patients.get_all_records())
     visits_df = pd.DataFrame(sheet_visits.get_all_records())
 
-    # 🧹 Clean and validate headers
+    # 🧹 Clean headers
     patients_df.columns = patients_df.columns.str.strip()
     visits_df.columns = visits_df.columns.str.strip()
     patients_df = patients_df.loc[:, patients_df.columns.notna()]
     visits_df = visits_df.loc[:, visits_df.columns.notna()]
-    visits_df = visits_df.loc[:, visits_df.columns != '']
+    visits_df = visits_df.loc[:, visits_df.columns != ""]
 
-    # ✅ Ensure required column exists
+    # ✅ Validate 'Patient ID'
     if "Patient ID" not in patients_df.columns or "Patient ID" not in visits_df.columns:
         st.error(
             f"⚠️ 'Patient ID' column missing.\n\n"
@@ -52,16 +64,16 @@ try:
     if visits_df.empty:
         st.warning("⚠️ The 'Visits' sheet is empty.")
 except Exception as e:
-    st.error(f"❌ Failed to load data: {e}")
+    st.error(f"❌ Failed to load sheet data: {e}")
     st.stop()
 
 # ============================
-# 🧭 SIDEBAR & TOGGLE
+# 🧭 SIDEBAR UI
 # ============================
 st.sidebar.title("🏥 Sara Patient Database")
 search = st.sidebar.text_input("🔍 Search Patient by Name or ID")
 
-# Toggle for Add New Patient
+# Toggleable Add Form
 if "show_form" not in st.session_state:
     st.session_state.show_form = False
 
@@ -69,7 +81,7 @@ if st.sidebar.button("➕ Add New Patient"):
     st.session_state.show_form = not st.session_state.show_form
 
 # ============================
-# 📋 DISPLAY PATIENTS
+# 👨‍⚕️ DISPLAY PATIENTS
 # ============================
 if not patients_df.empty:
     filtered_df = patients_df.copy()
@@ -89,15 +101,17 @@ if not patients_df.empty:
             patient_visits = visits_df[visits_df["Patient ID"] == row.get("Patient ID")]
             if not patient_visits.empty:
                 st.write("### 📅 Visits")
-                st.dataframe(patient_visits)
+                patient_visits = patient_visits.sort_values(by="Date of Visit", ascending=False)
+                for _, visit_row in patient_visits.iterrows():
+                    with st.expander(f"🗓️ {visit_row.get('Date of Visit', 'Unknown Date')}", expanded=False):
+                        st.write(visit_row.to_frame().T)
             else:
                 st.info("No visits found for this patient.")
-
 else:
     st.info("No patients found in the database.")
 
 # ============================
-# 🧍 ADD NEW PATIENT FORM
+# ➕ ADD NEW PATIENT FORM
 # ============================
 if st.session_state.show_form:
     st.subheader("➕ Add New Patient")
