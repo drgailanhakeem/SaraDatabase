@@ -2,198 +2,90 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime, date, time
 
-# ===============================
-# Google Sheets Setup
-# ===============================
+st.set_page_config(page_title="Sara Database", layout="wide")
+
+# --- Google Sheets Setup ---
+SHEET_NAME_RESPONSES = "Responses"
+SHEET_NAME_VISITS = "Visits"
 SCOPE = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
+    "https://www.googleapis.com/auth/drive",
 ]
 
-st.set_page_config(page_title="Sara Patient Database", page_icon="🏥", layout="wide")
+# --- Authenticate ---
+creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPE)
+client = gspread.authorize(creds)
+
+# --- Load sheets safely ---
+@st.cache_data(ttl=60)
+def load_sheet(sheet_name):
+    sheet = client.open("SaraDatabase").worksheet(sheet_name)
+    df = pd.DataFrame(sheet.get_all_records())
+    df.columns = df.columns.str.strip()
+    return df
 
 try:
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
-        scopes=SCOPE
-    )
-    client = gspread.authorize(creds)
-
-    sheet_responses = client.open("Sara Patient Database").worksheet("Responses")
-    sheet_visits = client.open("Sara Patient Database").worksheet("Visits")
-
+    responses_df = load_sheet(SHEET_NAME_RESPONSES)
+    visits_df = load_sheet(SHEET_NAME_VISITS)
 except Exception as e:
-    st.error(f"❌ Failed to connect to Google Sheets: {e}")
+    st.error(f"❌ Failed to load sheets: {e}")
     st.stop()
 
-# ===============================
-# Load Data
-# ===============================
-def load_data():
-    try:
-        patients = sheet_responses.get_all_records()
-        visits = sheet_visits.get_all_records()
-        df_patients = pd.DataFrame(patients)
-        df_visits = pd.DataFrame(visits)
-        df_patients.columns = df_patients.columns.str.strip()
-        df_visits.columns = df_visits.columns.str.strip()
-        return df_patients, df_visits
-    except Exception as e:
-        st.error(f"❌ Failed to load sheets: {e}")
-        return pd.DataFrame(), pd.DataFrame()
+# --- Unified column structure ---
+expected_columns = [
+    "Timestamp","Full Name","Date of Birth","Age (in years)","Sex","Address",
+    "Date of Visit","Time of Visit","Doctor's Name","Cheif Compliant","Duration of Compliant",
+    "Onset","HPI","Associated Symptoms","Relevant Negatives","Past Medical Hx","Past Surgical Hx",
+    "Allergies","Current Medications","Family Hx","Smoking Status","Alcohol Use","Substance Use",
+    "Occupation","Marital Status","General","CVS","Respiratory","GIT","GUT","Neurology","Psychiatry",
+    "Vital Signs","Height","Weight","General Apperance","Physical Examination Findings","Lab Tests Ordered",
+    "Lab Results","Imaging Studies","Working Diagnosis","Differential Diagnosis","Final Diagnosis",
+    "Medications Prescribed","Non-Pharmacologic Advice","Referrals","Follow-Up Date",
+    "Doctor's Notes / Impression","Visit Type","Submitter Name","Patient ID"
+]
 
-patients_df, visits_df = load_data()
+# --- Verify column structure ---
+for df_name, df in {"Responses": responses_df, "Visits": visits_df}.items():
+    missing = [c for c in expected_columns if c not in df.columns]
+    if missing:
+        st.error(f"❌ {df_name} missing columns: {missing}")
+        st.stop()
 
-if patients_df.empty:
-    st.warning("⚠️ The 'Responses' sheet is empty.")
-if visits_df.empty:
-    st.warning("⚠️ The 'Visits' sheet is empty.")
+# --- Main App UI ---
+st.title("🩺 Sara Database")
 
-# ===============================
-# App UI
-# ===============================
-st.title("🏥 Sara Patient Database")
+menu = st.sidebar.radio("Menu", ["View Patients", "Add Patient", "Add Visit"])
 
-# --- Toggleable Add New Patient Form ---
-with st.expander("➕ Add New Patient", expanded=False):
+# --- View Patients ---
+if menu == "View Patients":
+    st.subheader("Patient Records")
+    st.dataframe(responses_df)
+
+# --- Add Patient ---
+elif menu == "Add Patient":
+    st.subheader("➕ Add Patient")
+
     with st.form("add_patient_form"):
-        full_name = st.text_input("Full Name")
-        dob = st.date_input("Date of Birth", min_value=date(1900, 1, 1), max_value=date.today())
-        age = st.number_input("Age (in years)", min_value=0, max_value=120, step=1)
-        sex = st.selectbox("Sex", ["Male", "Female", "Other"])
-        address = st.text_input("Address")
-        date_of_visit = st.date_input("Date of Visit", date.today())
-        time_of_visit = st.time_input("Time of Visit", datetime.now().time())
-        doctor_name = st.text_input("Doctor's Name")
-        chief_complaint = st.text_area("Chief Complaint")
-        duration_complaint = st.text_input("Duration of Complaint")
-        submitter_name = st.text_input("Submitter Name")
+        form_data = {col: st.text_input(col) for col in expected_columns}
+        submitted = st.form_submit_button("Submit")
 
-        submitted = st.form_submit_button("✅ Add Patient")
         if submitted:
-            try:
-                new_patient = {
-                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Full Name": full_name,
-                    "Date of Birth": dob.strftime("%Y-%m-%d"),
-                    "Age (in years)": age,
-                    "Sex": sex,
-                    "Address": address,
-                    "Date of Visit": date_of_visit.strftime("%Y-%m-%d"),
-                    "Time of Visit": time_of_visit.strftime("%H:%M:%S"),
-                    "Doctor's Name": doctor_name,
-                    "Cheif Compliant": chief_complaint,
-                    "Duration of Compliant": duration_complaint,
-                    "Onset": "",
-                    "HPI": "",
-                    "Associated Symptoms": "",
-                    "Relevant Negatives": "",
-                    "Past Medical Hx": "",
-                    "Past Surgical Hx": "",
-                    "Allergies": "",
-                    "Current Medications": "",
-                    "Family Hx": "",
-                    "Smoking Status": "",
-                    "Alcohol Use": "",
-                    "Substance Use": "",
-                    "Occupation": "",
-                    "Marital Status": "",
-                    "General": "",
-                    "CVS": "",
-                    "Respiratory": "",
-                    "GIT": "",
-                    "GUT": "",
-                    "Neurology": "",
-                    "Psychiatry": "",
-                    "Vital Signs": "",
-                    "Height": "",
-                    "Weight": "",
-                    "General Apperance": "",
-                    "Physical Examination Findings": "",
-                    "Lab Tests Ordered": "",
-                    "Lab Results": "",
-                    "Imaging Studies": "",
-                    "Working Diagnosis": "",
-                    "Differential Diagnosis": "",
-                    "Final Diagnosis": "",
-                    "Medications Prescribed": "",
-                    "Non-Pharmacologic Advice": "",
-                    "Referrals": "",
-                    "Follow-Up Date": "",
-                    "Doctor's Notes / Impression": "",
-                    "Visit Type": "Initial",
-                    "Submitter Name": submitter_name,
-                    "Patient ID": f"PT{len(patients_df) + 1:04d}",
-                }
+            sheet = client.open("SaraDatabase").worksheet(SHEET_NAME_RESPONSES)
+            sheet.append_row([form_data.get(c, "") for c in expected_columns])
+            st.success("✅ Patient added successfully!")
+            st.cache_data.clear()
 
-                # Write to both sheets
-                sheet_responses.append_row(list(new_patient.values()))
-                sheet_visits.append_row(list(new_patient.values()))
+# --- Add Visit ---
+elif menu == "Add Visit":
+    st.subheader("🩺 Add Visit")
 
-                st.success("✅ Patient added successfully to both sheets!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error adding patient: {e}")
+    with st.form("add_visit_form"):
+        form_data = {col: st.text_input(col) for col in expected_columns}
+        submitted = st.form_submit_button("Submit")
 
-# ===============================
-# Display Patient List
-# ===============================
-st.subheader("🩺 Patient List")
-
-search = st.text_input("🔍 Search Patient by Name or ID")
-
-if not patients_df.empty:
-    if search:
-        patients_df = patients_df[
-            patients_df["Full Name"].astype(str).str.contains(search, case=False, na=False)
-            | patients_df["Patient ID"].astype(str).str.contains(search, na=False)
-        ]
-
-    for _, row in patients_df.iterrows():
-        with st.expander(f"👤 {row.get('Full Name', 'Unknown')} ({row.get('Patient ID', 'N/A')})", expanded=False):
-            st.markdown("### 🧾 Patient Information")
-            for col, val in row.items():
-                st.write(f"**{col}:** {val if val else 'N/A'}")
-
-            st.markdown("### 🩺 Visits")
-
-            patient_visits = visits_df[visits_df["Patient ID"] == row.get("Patient ID")]
-            if not patient_visits.empty:
-                for _, visit in patient_visits.sort_values("Date of Visit", ascending=False).iterrows():
-                    with st.expander(f"📅 {visit.get('Date of Visit', 'Unknown')} — {visit.get('Visit Type', 'N/A')}", expanded=False):
-                        for vcol, vval in visit.items():
-                            st.write(f"**{vcol}:** {vval if vval else 'N/A'}")
-            else:
-                st.info("No visits recorded for this patient.")
-
-            # Add new visit
-            with st.expander("➕ Add Visit", expanded=False):
-                with st.form(f"add_visit_form_{row['Patient ID']}"):
-                    visit_date = st.date_input("Date of Visit", date.today(), key=f"vd_{row['Patient ID']}")
-                    visit_type = st.selectbox("Visit Type", ["Follow-up", "Emergency", "Routine"], key=f"vt_{row['Patient ID']}")
-                    doctor_name_visit = st.text_input("Doctor's Name", key=f"dn_{row['Patient ID']}")
-                    notes = st.text_area("Doctor's Notes / Impression", key=f"notes_{row['Patient ID']}")
-                    diagnosis = st.text_input("Final Diagnosis", key=f"diag_{row['Patient ID']}")
-
-                    submit_visit = st.form_submit_button("✅ Add Visit")
-                    if submit_visit:
-                        try:
-                            new_visit = row.to_dict()
-                            new_visit.update({
-                                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                "Date of Visit": visit_date.strftime("%Y-%m-%d"),
-                                "Visit Type": visit_type,
-                                "Doctor's Name": doctor_name_visit,
-                                "Final Diagnosis": diagnosis,
-                                "Doctor's Notes / Impression": notes,
-                            })
-
-                            # Append full structured visit to Visits sheet
-                            sheet_visits.append_row(list(new_visit.values()))
-
-                            st.success("✅ Visit added successfully to Visits sheet!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error adding visit: {e}")
+        if submitted:
+            sheet = client.open("SaraDatabase").worksheet(SHEET_NAME_VISITS)
+            sheet.append_row([form_data.get(c, "") for c in expected_columns])
+            st.success("✅ Visit added successfully!")
+            st.cache_data.clear()
