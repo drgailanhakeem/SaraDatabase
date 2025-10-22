@@ -21,23 +21,8 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 sheet_file = client.open_by_key(SHEET_ID)
 
-# === Load sheets ===
-@st.cache_data(ttl=60)
-def load_sheet(sheet_name):
-    sheet = sheet_file.worksheet(sheet_name)
-    df = pd.DataFrame(sheet.get_all_records())
-    df.columns = [str(c).strip() for c in df.columns]
-    return df
-
-try:
-    responses_df = load_sheet(SHEET_NAME_RESPONSES)
-    visits_df = load_sheet(SHEET_NAME_VISITS)
-except Exception as e:
-    st.error(f"❌ Failed to load sheets: {e}")
-    st.stop()
-
-# === Expected Columns ===
-expected_columns = [
+# === Expected columns (master list) ===
+EXPECTED_COLUMNS = [
     "Timestamp","Full Name","Date of Birth","Age (in years)","Sex","Address",
     "Date of Visit","Time of Visit","Doctor's Name","Cheif Compliant","Duration of Compliant",
     "Onset","HPI","Associated Symptoms","Relevant Negatives","Past Medical Hx","Past Surgical Hx",
@@ -49,14 +34,30 @@ expected_columns = [
     "Doctor's Notes / Impression","Visit Type","Submitter Name","Patient ID"
 ]
 
-for df_name, df in {"Responses": responses_df, "Visits": visits_df}.items():
-    missing = [c for c in expected_columns if c not in df.columns]
-    if missing:
-        st.error(f"❌ {df_name} sheet missing columns: {missing}")
-        st.stop()
+# === Load sheet safely ===
+def load_sheet(name):
+    sheet = sheet_file.worksheet(name)
+    df = pd.DataFrame(sheet.get_all_records())
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # Auto-add missing columns as empty
+    for col in EXPECTED_COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+
+    # Reorder columns
+    df = df[EXPECTED_COLUMNS]
+    return df
+
+try:
+    responses_df = load_sheet(SHEET_NAME_RESPONSES)
+    visits_df = load_sheet(SHEET_NAME_VISITS)
+except Exception as e:
+    st.error(f"❌ Failed to load sheets: {e}")
+    st.stop()
 
 # === App UI ===
-st.title("🩺 Sara Patient Database")
+st.title("🏥 Sara Patient Database")
 
 menu = st.sidebar.radio("Menu", ["View Patients", "Add Patient", "Add Visit"])
 
@@ -67,21 +68,27 @@ if menu == "View Patients":
 elif menu == "Add Patient":
     st.subheader("➕ Add Patient")
     with st.form("add_patient_form"):
-        form_data = {col: st.text_input(col) for col in expected_columns}
-        submitted = st.form_submit_button("Submit")
+        form_data = {col: st.text_input(col) for col in EXPECTED_COLUMNS}
+        submitted = st.form_submit_button("✅ Submit")
         if submitted:
-            sheet = sheet_file.worksheet(SHEET_NAME_RESPONSES)
-            sheet.append_row([form_data.get(c, "") for c in expected_columns])
-            st.success("✅ Patient added successfully!")
-            st.cache_data.clear()
+            try:
+                sheet = sheet_file.worksheet(SHEET_NAME_RESPONSES)
+                sheet.append_row([form_data.get(c, "") for c in EXPECTED_COLUMNS])
+                st.success("✅ Patient added successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error adding patient: {e}")
 
 elif menu == "Add Visit":
     st.subheader("🩺 Add Visit")
     with st.form("add_visit_form"):
-        form_data = {col: st.text_input(col) for col in expected_columns}
-        submitted = st.form_submit_button("Submit")
+        form_data = {col: st.text_input(col) for col in EXPECTED_COLUMNS}
+        submitted = st.form_submit_button("✅ Submit")
         if submitted:
-            sheet = sheet_file.worksheet(SHEET_NAME_VISITS)
-            sheet.append_row([form_data.get(c, "") for c in expected_columns])
-            st.success("✅ Visit added successfully!")
-            st.cache_data.clear()
+            try:
+                sheet = sheet_file.worksheet(SHEET_NAME_VISITS)
+                sheet.append_row([form_data.get(c, "") for c in EXPECTED_COLUMNS])
+                st.success("✅ Visit added successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error adding visit: {e}")
