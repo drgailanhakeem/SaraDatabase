@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="Sara Database", layout="wide")
+st.set_page_config(page_title="Sara Patient Database", layout="wide")
 
 # --- Google Sheets Setup ---
 SHEET_NAME_RESPONSES = "Responses"
