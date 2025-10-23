@@ -4,85 +4,63 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # --- Page Config ---
-st.set_page_config(
-    page_title="Patient Profiles",
-    page_icon="🧠",
-    layout="wide",
-)
+st.set_page_config(page_title="Patient Profiles", page_icon="🧠", layout="wide")
 
 # --- Custom CSS ---
 st.markdown("""
 <style>
     [data-testid="stAppViewContainer"] {
-        background-color: #f8f9fb;
+        background: #f8f9fb;
     }
     [data-testid="stHeader"] {
         background: rgba(0,0,0,0);
     }
+
     .main-title {
         font-size: 2rem;
         font-weight: 700;
-        color: #1a1a1a;
-        margin-bottom: 0.2rem;
+        color: #1e293b;
+        margin-bottom: 0.3rem;
     }
     .sub-title {
-        color: #555;
+        color: #64748b;
         font-size: 1rem;
-        margin-bottom: 1rem;
+        margin-bottom: 1.2rem;
     }
-    .patient-button {
-        background-color: white;
-        border-radius: 12px;
-        padding: 1rem 1.2rem;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-        margin-bottom: 0.8rem;
-        width: 100%;
-        text-align: left;
-        font-size: 1.05rem;
-        font-weight: 600;
-        color: #222;
-        border: none;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    .patient-button:hover {
-        background-color: #f0f2f5;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        transform: translateY(-2px);
-    }
-    .patient-section {
-        background: white;
-        border-radius: 12px;
-        padding: 2rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        margin-top: 1.2rem;
-    }
-    .info-card {
-        background: #fdfdfd;
-        border: 1px solid #eee;
-        border-radius: 10px;
-        padding: 1rem;
-        transition: all 0.2s ease;
-    }
-    .info-card:hover {
-        background: #f9f9f9;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
-    }
-    .info-label {
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: #444;
-        margin-bottom: 0.2rem;
-    }
-    .info-value {
-        font-size: 0.95rem;
-        color: #000;
-        margin-bottom: 0.4rem;
-    }
-    .info-grid {
+
+    /* Patient detail grid */
+    .patient-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 1rem 1.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 14px;
+    }
+
+    .info-card {
+        background: white;
+        border-radius: 10px;
+        padding: 14px 18px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .field-label {
+        font-weight: 600;
+        color: #334155;
+        font-size: 0.9rem;
+    }
+
+    .field-value {
+        color: #475569;
+        font-size: 0.9rem;
+    }
+
+    .back-button {
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .back-button:hover {
+        text-decoration: underline;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -105,73 +83,61 @@ def load_data(sheet):
         return pd.DataFrame()
     df = pd.DataFrame(data)
     df.columns = [c.strip() for c in df.columns]
-    df = df[df["Full Name"].str.lower() != "full name"]
-    df = df[df["Full Name"].notna() & (df["Full Name"].str.strip() != "")]
     return df
 
-# --- Header ---
-st.markdown('<div class="main-title">🧠 Patient Profiles Viewer</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Click a patient name to view their record</div>', unsafe_allow_html=True)
-st.markdown("---")
+# --- Load data ---
+sheet = connect_to_google_sheet()
+patients_df = load_data(sheet)
 
-try:
-    sheet = connect_to_google_sheet()
-    patients_df = load_data(sheet)
+if patients_df.empty:
+    st.warning("No patient records found in the Google Sheet.")
+    st.stop()
 
-    if patients_df.empty:
-        st.warning("No patient records found.")
-    else:
-        # --- State ---
-        if "selected_patient" not in st.session_state:
-            st.session_state.selected_patient = None
+# --- Page logic ---
+if "selected_patient" not in st.session_state:
+    st.session_state.selected_patient = None
 
-        # --- Search ---
-        search = st.text_input("🔍 Search by name or keyword")
+# --- Homepage ---
+if st.session_state.selected_patient is None:
+    st.markdown('<div class="main-title">🧠 Patient Profiles</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">Click a patient to view their full record.</div>', unsafe_allow_html=True)
+    st.markdown("---")
 
-        if search:
-            filtered = patients_df[
-                patients_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
-            ]
-        else:
-            filtered = patients_df
+    # Remove the first row if it's a header misread
+    if patients_df.iloc[0]["Full Name"] == "Full Name":
+        patients_df = patients_df.iloc[1:]
 
-        # --- Homepage ---
-        if st.session_state.selected_patient is None:
-            if filtered.empty:
-                st.warning("No matching results.")
-            else:
-                for i, patient in filtered.iterrows():
-                    name = patient.get("Full Name", "Unnamed Patient")
-                    if not isinstance(name, str) or name.strip() == "":
-                        continue
+    # Clean names
+    patients_df["Full Name"] = patients_df["Full Name"].fillna("Unnamed")
 
-                    button_key = f"patient_{i}"
-                    if st.button(name, key=button_key, use_container_width=True):
-                        st.session_state.selected_patient = i
-                        st.rerun()
+    # Show list of patients
+    for i, row in patients_df.iterrows():
+        name = row["Full Name"]
+        if st.button(name, use_container_width=True):
+            st.session_state.selected_patient = i
+            st.rerun()
 
-        # --- Detail Page ---
-        else:
-            patient = patients_df.iloc[st.session_state.selected_patient]
-            st.markdown(f"## 👤 {patient.get('Full Name', 'Unnamed Patient')}")
+# --- Detail Page ---
+else:
+    patient = patients_df.iloc[st.session_state.selected_patient]
 
-            st.markdown('<div class="patient-section">', unsafe_allow_html=True)
-            st.markdown('<div class="info-grid">', unsafe_allow_html=True)
-            for col in patients_df.columns:
-                value = patient.get(col, "")
-                if pd.isna(value) or str(value).strip() == "":
-                    value = "—"
-                st.markdown(f"""
-                    <div class="info-card">
-                        <div class="info-label">{col}</div>
-                        <div class="info-value">{value}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            st.markdown('</div></div>', unsafe_allow_html=True)
+    st.markdown(f"<a class='back-button' href='#' onclick='window.location.reload()'>← Back to all patients</a>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='margin-top:0.5rem;color:#1e293b;'>{patient.get('Full Name','Unnamed')}</h2>")
+    st.markdown("<hr>", unsafe_allow_html=True)
 
-            if st.button("← Back to List", key="back"):
-                st.session_state.selected_patient = None
-                st.rerun()
+    # --- Display fields in grid layout ---
+    st.markdown('<div class="patient-grid">', unsafe_allow_html=True)
 
-except Exception as e:
-    st.error(f"❌ Error loading data: {e}")
+    for col in patients_df.columns:
+        value = str(patient.get(col, "")).strip()
+        if value == "":
+            value = "—"
+        card_html = f"""
+        <div class="info-card">
+            <div class="field-label">{col}</div>
+            <div class="field-value">{value}</div>
+        </div>
+        """
+        st.markdown(card_html, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
