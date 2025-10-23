@@ -30,26 +30,25 @@ st.markdown("""
         font-size: 1rem;
         margin-bottom: 1rem;
     }
-    .patient-card {
-        background: white;
+    .patient-button {
+        background-color: white;
         border-radius: 12px;
         padding: 1rem 1.2rem;
         box-shadow: 0 2px 6px rgba(0,0,0,0.06);
         margin-bottom: 0.8rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        border: 1px solid transparent;
-    }
-    .patient-card:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-color: #e6e6e6;
-        transform: translateY(-2px);
-    }
-    .patient-name {
-        font-size: 1.1rem;
+        width: 100%;
+        text-align: left;
+        font-size: 1.05rem;
         font-weight: 600;
         color: #222;
-        margin: 0;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .patient-button:hover {
+        background-color: #f0f2f5;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transform: translateY(-2px);
     }
     .patient-section {
         background: white;
@@ -106,7 +105,7 @@ def load_data(sheet):
         return pd.DataFrame()
     df = pd.DataFrame(data)
     df.columns = [c.strip() for c in df.columns]
-    df = df[df["Full Name"].str.lower() != "full name"]  # remove header duplication
+    df = df[df["Full Name"].str.lower() != "full name"]
     df = df[df["Full Name"].notna() & (df["Full Name"].str.strip() != "")]
     return df
 
@@ -126,7 +125,7 @@ try:
         if "selected_patient" not in st.session_state:
             st.session_state.selected_patient = None
 
-        # --- Search bar ---
+        # --- Search ---
         search = st.text_input("🔍 Search by name or keyword")
 
         if search:
@@ -136,7 +135,7 @@ try:
         else:
             filtered = patients_df
 
-        # --- Homepage List ---
+        # --- Homepage ---
         if st.session_state.selected_patient is None:
             if filtered.empty:
                 st.warning("No matching results.")
@@ -145,22 +144,13 @@ try:
                     name = patient.get("Full Name", "Unnamed Patient")
                     if not isinstance(name, str) or name.strip() == "":
                         continue
-                    card_html = f"""
-                    <div class="patient-card" id="card_{i}" onclick="window.location.href='?patient={i}'">
-                        <p class="patient-name">{name}</p>
-                    </div>
-                    """
-                    st.markdown(card_html, unsafe_allow_html=True)
-                # Capture query param for navigation
-                query_params = st.query_params
-                if "patient" in query_params:
-                    try:
-                        st.session_state.selected_patient = int(query_params["patient"])
-                        st.rerun()
-                    except:
-                        pass
 
-        # --- Patient Detail Page ---
+                    button_key = f"patient_{i}"
+                    if st.button(name, key=button_key, use_container_width=True):
+                        st.session_state.selected_patient = i
+                        st.rerun()
+
+        # --- Detail Page ---
         else:
             patient = patients_df.iloc[st.session_state.selected_patient]
             st.markdown(f"## 👤 {patient.get('Full Name', 'Unnamed Patient')}")
@@ -181,7 +171,6 @@ try:
 
             if st.button("← Back to List", key="back"):
                 st.session_state.selected_patient = None
-                st.query_params.clear()
                 st.rerun()
 
 except Exception as e:
