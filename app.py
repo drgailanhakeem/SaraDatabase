@@ -30,36 +30,58 @@ st.markdown("""
         .sub-title {
             color: #666;
             font-size: 1rem;
+            margin-bottom: 1rem;
         }
 
         .patient-card {
             background: white;
             border-radius: 14px;
-            padding: 1.5rem;
+            padding: 1.2rem;
             box-shadow: 0 3px 10px rgba(0,0,0,0.05);
-            margin-bottom: 1rem;
+            margin-bottom: 0.8rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .patient-card:hover {
+            box-shadow: 0 5px 14px rgba(0,0,0,0.08);
+            transform: scale(1.01);
         }
 
         .patient-section {
             background: white;
             border-radius: 12px;
-            padding: 1.2rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             margin-top: 1.2rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 0.8rem 2rem;
         }
 
         .label {
             font-weight: 600;
             color: #444;
+            font-size: 0.92rem;
         }
 
         .value {
-            color: #222;
+            color: #111;
+            font-size: 0.95rem;
             margin-bottom: 0.4rem;
         }
 
         .back-btn {
             margin-top: 1.5rem;
+        }
+
+        /* Buttons */
+        button[kind="secondary"] {
+            background: #f2f4f8;
+            color: #222;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -82,12 +104,13 @@ def load_data(sheet):
         return pd.DataFrame()
     df = pd.DataFrame(data)
     df.columns = [c.strip() for c in df.columns]
+    df = df[df["Full Name"].str.lower() != "full name"]  # remove header row duplication
+    df = df[df["Full Name"].notna() & (df["Full Name"].str.strip() != "")]
     return df
-
 
 # --- Main UI ---
 st.markdown('<div class="main-title">🧠 Patient Profiles Viewer</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">View and search all patient data from Google Sheets in one place</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Click on a patient to view their full record</div>', unsafe_allow_html=True)
 st.markdown("---")
 
 try:
@@ -104,7 +127,7 @@ try:
             st.session_state.selected_patient = None
 
         # --- Search bar ---
-        search = st.text_input("🔍 Search by Name, ID, or Diagnosis")
+        search = st.text_input("🔍 Search by Name, Diagnosis, or Keyword")
 
         if search:
             filtered = patients_df[
@@ -118,16 +141,14 @@ try:
             if not filtered.empty:
                 for i, patient in filtered.iterrows():
                     name = patient.get("Full Name", "Unnamed Patient")
-                    patient_id = patient.get("Patient ID", "N/A")
-
+                    if not isinstance(name, str) or name.strip() == "":
+                        continue
                     with st.container():
-                        st.markdown(f"""
-                        <div class="patient-card">
-                            <div style="font-size:1.2rem; font-weight:600;">{name}</div>
-                            <div style="color:#555;">🆔 {patient_id}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        if st.button(f"View Details →", key=f"btn_{i}"):
+                        st.markdown(
+                            f"<div class='patient-card'><b>{name}</b></div>",
+                            unsafe_allow_html=True
+                        )
+                        if st.button("View Details →", key=f"btn_{i}"):
                             st.session_state.selected_patient = i
                             st.rerun()
             else:
@@ -139,12 +160,18 @@ try:
             st.markdown("#### Patient Details")
 
             st.markdown('<div class="patient-section">', unsafe_allow_html=True)
+            st.markdown('<div class="info-grid">', unsafe_allow_html=True)
             for col in patients_df.columns:
                 value = patient.get(col, "")
                 if pd.isna(value) or value == "":
                     value = "—"
-                st.markdown(f"<div class='label'>{col}</div><div class='value'>{value}</div>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div>
+                        <div class='label'>{col}</div>
+                        <div class='value'>{value}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
 
             if st.button("← Back to List", key="back", help="Return to patient list"):
                 st.session_state.selected_patient = None
