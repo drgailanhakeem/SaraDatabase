@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-import plotly.express as px
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(page_title="Patient EMR Dashboard", layout="wide", page_icon="🧠")
@@ -47,11 +46,6 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
         padding: 0.3rem !important;
     }
-    .metric-container {
-        display: flex;
-        justify-content: space-around;
-        margin-bottom: 20px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -94,15 +88,6 @@ try:
     col2.metric("🩺 Filtered Patients", len(filtered_df))
     col3.metric("♂️ Males", sum(patients_df["Sex"] == "Male"))
     col4.metric("♀️ Females", sum(patients_df["Sex"] == "Female"))
-
-    # ======= OPTIONAL CHART =======
-    with st.expander("📊 View Analytics", expanded=False):
-        if "Age (in years)" in patients_df.columns:
-            fig = px.histogram(
-                patients_df, x="Age (in years)", nbins=10,
-                title="Age Distribution", template="simple_white"
-            )
-            st.plotly_chart(fig, use_container_width=True)
 
     # ======= PATIENT CARDS =======
     st.subheader("🧾 Patient Profiles")
