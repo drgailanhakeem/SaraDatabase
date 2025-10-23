@@ -66,6 +66,10 @@ except Exception as e:
     st.error(f"❌ Failed to load sheets: {e}")
     st.stop()
 
+# Ensure Patient ID is string and not NaN
+patients_df["Patient ID"] = patients_df["Patient ID"].fillna("").astype(str)
+visits_df["Patient ID"] = visits_df["Patient ID"].fillna("").astype(str)
+
 # ===============================
 # MAIN APP
 # ===============================
@@ -82,7 +86,9 @@ if not patients_df.empty:
         )
     ] if search else patients_df
 
-    for _, row in filtered_patients.iterrows():
+    for i, row in filtered_patients.iterrows():
+        unique_suffix = f"_{i}"  # ensures all keys are unique
+
         with st.expander(f"👤 {row['Full Name']} ({row['Patient ID']})", expanded=False):
             st.markdown("### 🧾 Patient Information")
             for col, val in row.items():
@@ -93,7 +99,7 @@ if not patients_df.empty:
             patient_visits = visits_df[visits_df["Patient ID"] == row["Patient ID"]]
 
             if not patient_visits.empty:
-                for _, visit in patient_visits.sort_values("Date of Visit", ascending=False).iterrows():
+                for j, visit in patient_visits.sort_values("Date of Visit", ascending=False).iterrows():
                     with st.expander(f"📅 {visit['Date of Visit']} — {visit.get('Visit Type', 'N/A')}", expanded=False):
                         for vcol, vval in visit.items():
                             st.write(f"**{vcol}:** {vval if vval else 'N/A'}")
@@ -104,10 +110,10 @@ if not patients_df.empty:
 
             # Add Visit Form
             with st.expander("➕ Add Visit", expanded=False):
-                with st.form(f"add_visit_form_{row['Patient ID']}"):
+                with st.form(f"add_visit_form_{row['Patient ID']}{unique_suffix}"):
                     visit_data = {}
                     for col in EXPECTED_COLUMNS:
-                        visit_data[col] = st.text_input(col, key=f"{col}_{row['Patient ID']}")
+                        visit_data[col] = st.text_input(col, key=f"{col}_{row['Patient ID']}{unique_suffix}")
                     submit_visit = st.form_submit_button("✅ Add Visit")
                     if submit_visit:
                         try:
@@ -121,7 +127,7 @@ if not patients_df.empty:
                             st.error(f"Error adding visit: {e}")
 
             # Delete Button
-            delete_key = f"delete_{row['Patient ID']}"
+            delete_key = f"delete_{row['Patient ID']}{unique_suffix}"
             if st.button("🗑️ Delete Patient", key=delete_key):
                 try:
                     all_records = sheet_responses.get_all_records()
