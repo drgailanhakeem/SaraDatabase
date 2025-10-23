@@ -129,7 +129,7 @@ try:
                         """, unsafe_allow_html=True)
                         if st.button(f"View Details →", key=f"btn_{i}"):
                             st.session_state.selected_patient = i
-                            st.experimental_rerun()
+                            st.rerun()
             else:
                 st.warning("No matching records found.")
         else:
@@ -148,7 +148,7 @@ try:
 
             if st.button("← Back to List", key="back", help="Return to patient list"):
                 st.session_state.selected_patient = None
-                st.experimental_rerun()
+                st.rerun()
 
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")
