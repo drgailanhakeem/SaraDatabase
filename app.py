@@ -14,7 +14,6 @@ st.set_page_config(
 # --- Custom CSS for Modern Design ---
 st.markdown("""
     <style>
-        /* General app background */
         [data-testid="stAppViewContainer"] {
             background: #f8f9fb;
         }
@@ -22,7 +21,6 @@ st.markdown("""
             background: rgba(0,0,0,0);
         }
 
-        /* Titles */
         .main-title {
             font-size: 2rem;
             font-weight: 700;
@@ -34,7 +32,6 @@ st.markdown("""
             font-size: 1rem;
         }
 
-        /* Profile Card */
         .profile-card {
             background-color: white;
             border-radius: 15px;
@@ -42,16 +39,18 @@ st.markdown("""
             padding: 1.5rem;
             margin-bottom: 1rem;
         }
+
         .profile-card h3 {
             margin: 0;
             color: #0078ff;
         }
+
         .profile-detail {
             margin-top: 0.5rem;
             color: #333;
+            font-size: 0.95rem;
         }
 
-        /* Buttons */
         div.stButton > button {
             background-color: #0078ff;
             color: white;
@@ -59,6 +58,7 @@ st.markdown("""
             padding: 0.4rem 1rem;
             border: none;
         }
+
         div.stButton > button:hover {
             background-color: #005fcc;
         }
@@ -120,25 +120,16 @@ try:
             patient = st.session_state.selected_patient
             st.markdown("### 👤 Patient Profile")
             st.markdown("---")
-            st.markdown(f"""
-                <div class="profile-card">
-                    <h3>{patient.get('Full Name', 'N/A')}</h3>
-                    <div class="profile-detail"><strong>Age:</strong> {patient.get('Age (in years)', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Sex:</strong> {patient.get('Sex', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Date of Birth:</strong> {patient.get('Date of Birth', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Address:</strong> {patient.get('Address', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Date of Visit:</strong> {patient.get('Date of Visit', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Chief Complaint:</strong> {patient.get('Cheif Compliant', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Duration of Complaint:</strong> {patient.get('Duration of Compliant', 'N/A')}</div>
-                    <div class="profile-detail"><strong>HPI:</strong> {patient.get('HPI', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Past Medical Hx:</strong> {patient.get('Past Medical Hx', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Family Hx:</strong> {patient.get('Family Hx', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Working Diagnosis:</strong> {patient.get('Working Diagnosis', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Final Diagnosis:</strong> {patient.get('Final Diagnosis', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Medications:</strong> {patient.get('Medications Prescribed', 'N/A')}</div>
-                    <div class="profile-detail"><strong>Doctor's Notes:</strong> {patient.get("Doctor's Notes / Impression", 'N/A')}</div>
-                </div>
-            """, unsafe_allow_html=True)
+
+            # Show all columns dynamically
+            st.markdown('<div class="profile-card">', unsafe_allow_html=True)
+            st.markdown(f"<h3>{patient.get('Full Name', 'Unnamed Patient')}</h3>", unsafe_allow_html=True)
+            for col in patients_df.columns:
+                value = patient.get(col, 'N/A')
+                if value == "" or pd.isna(value):
+                    value = "N/A"
+                st.markdown(f'<div class="profile-detail"><strong>{col}:</strong> {value}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
             if st.button("⬅️ Back to All Patients"):
                 st.session_state.selected_patient = None
@@ -153,7 +144,7 @@ try:
                 for _, row in filtered.iterrows():
                     col1, col2 = st.columns([3, 1])
                     with col1:
-                        if st.button(row["Full Name"]):
+                        if st.button(row.get("Full Name", "Unnamed Patient")):
                             st.session_state.selected_patient = row.to_dict()
                             st.rerun()
                     with col2:
