@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 SERVICE_ACCOUNT_INFO = st.secrets["gcp_service_account"]
 SHEET_ID = "1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0"
-RANGE_NAME = "Form Responses 1"
+RANGE_NAME = "Responses"
 
 # ===== AUTHENTICATION =====
 creds = Credentials.from_service_account_info(SERVICE_ACCOUNT_INFO, scopes=SCOPES)
