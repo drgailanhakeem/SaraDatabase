@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 SERVICE_ACCOUNT_INFO = st.secrets["gcp_service_account"]
 SHEET_ID = "1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0"
-RANGE_NAME = "Responses"
+RANGE_NAME = "Responses"  # ✅ your actual tab name
 
 # ===== AUTHENTICATION =====
 creds = Credentials.from_service_account_info(SERVICE_ACCOUNT_INFO, scopes=SCOPES)
@@ -61,6 +61,11 @@ st.markdown("""
         .info-value {
             color: #0f172a;
         }
+        .search-box input {
+            border-radius: 10px !important;
+            border: 1px solid #cbd5e1 !important;
+            padding: 0.6rem !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -72,10 +77,10 @@ if "selected_patient" not in st.session_state:
 def go_back():
     st.session_state.selected_patient = None
 
-# ===== UI =====
+# ===== MAIN UI =====
 st.title("🩺 Sara Database")
 
-# Remove the first row if it accidentally contains column headers
+# Fix any header-row duplication
 if df.iloc[0].equals(pd.Series(df.columns)):
     df = df.iloc[1:].reset_index(drop=True)
 
@@ -83,28 +88,45 @@ if df.iloc[0].equals(pd.Series(df.columns)):
 if st.session_state.selected_patient is None:
     st.subheader("Patient List")
 
-    for _, row in df.iterrows():
-        name = row.get("Full Name", "").strip()
-        if not name:
-            continue
-        button_label = f"👤 {name}"
-        if st.button(button_label, use_container_width=True, key=name):
-            st.session_state.selected_patient = row
-            st.rerun()
+    # --- Search Bar ---
+    search = st.text_input("🔍 Search by Name, ID, or Diagnosis", key="search", placeholder="Type to search...")
+    st.markdown("")
+
+    # Filter patients
+    filtered_df = df.copy()
+    if search:
+        search_lower = search.lower()
+        filtered_df = df[
+            df.apply(lambda row: row.astype(str).str.lower().str.contains(search_lower).any(), axis=1)
+        ]
+
+    if filtered_df.empty:
+        st.warning("No matching records found.")
+    else:
+        for _, row in filtered_df.iterrows():
+            name = row.get("Full Name", "").strip()
+            if not name:
+                continue
+            button_label = f"👤 {name}"
+            if st.button(button_label, use_container_width=True, key=name):
+                st.session_state.selected_patient = row
+                st.rerun()
 
 # ========== DETAIL PAGE ==========
 else:
     patient = st.session_state.selected_patient
 
-    # Back button with working logic
+    # Back button
     if st.button("← Back to all patients", use_container_width=False):
         go_back()
         st.rerun()
 
+    # Header
     st.markdown(
-        f"<div class='patient-header'>{patient.get('Full Name', 'N/A')}</div>",
+        f"<h2 style='margin-top:0.5rem;color:#1e293b;'>{patient.get('Full Name', 'N/A')}</h2>",
         unsafe_allow_html=True,
     )
+    st.markdown("---")
 
     # Two-column compact layout
     col1, col2 = st.columns(2)
