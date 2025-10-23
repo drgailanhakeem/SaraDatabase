@@ -1,38 +1,45 @@
 import streamlit as st
 import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
+import plotly.express as px
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(page_title="Patient EMR Dashboard", layout="wide", page_icon="🧠")
 
 # ========== GOOGLE SHEET SETTINGS ==========
-# ⚠️ Make sure your Google Sheet is shared as "Anyone with the link can view"
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/"
-SHEET_GID = "0"  # Usually 0 for the first sheet, but you can check the URL
+SHEET_NAME = "Form Responses 1"
 
-# ========== LOAD DATA DIRECTLY ==========
+# ========== CONNECT TO GOOGLE SHEETS ==========
 @st.cache_data(ttl=300)
-def load_data():
-    csv_url = SHEET_URL.replace("/edit#", f"/export?format=csv&gid={SHEET_GID}")
-    df = pd.read_csv(csv_url)
+def connect_to_google_sheet():
+    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    credentials = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=scopes
+    )
+    client = gspread.authorize(credentials)
+    return client.open_by_url(SHEET_URL).worksheet(SHEET_NAME)
+
+@st.cache_data(ttl=300)
+def load_data(sheet):
+    records = sheet.get_all_records()
+    if not records:
+        return pd.DataFrame()
+    df = pd.DataFrame(records)
     df.columns = [c.strip() for c in df.columns]
-
-    # ✅ Validate structure
-    required_cols = [
-        "Patient ID", "Full Name", "Age (in years)", "Sex",
-        "Doctor's Name", "Date of Visit", "Working Diagnosis"
-    ]
-    missing_cols = [c for c in required_cols if c not in df.columns]
-    if missing_cols:
-        raise ValueError(f"Missing columns in Google Sheet: {', '.join(missing_cols)}")
-
-    df = df.dropna(axis=1, how='all')
     return df
 
 # ========== UI STYLE ==========
 st.markdown("""
 <style>
-    .stApp { background-color: #f7f9fc; }
-    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+    .stApp {
+        background-color: #f7f9fc;
+    }
+    .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 2rem;
+    }
     .stExpander {
         border-radius: 12px !important;
         border: 1px solid #ddd !important;
@@ -40,12 +47,18 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
         padding: 0.3rem !important;
     }
+    .metric-container {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ========== MAIN APP ==========
+# ========== LOAD DATA ==========
 try:
-    patients_df = load_data()
+    sheet = connect_to_google_sheet()
+    patients_df = load_data(sheet)
 
     st.title("🧠 Patient EMR Dashboard")
 
@@ -53,15 +66,11 @@ try:
         st.warning("No patient records found in the Google Sheet.")
         st.stop()
 
-    # ======= SIDEBAR FILTERS =======
+    # ======= SIDEBAR =======
     st.sidebar.header("🔍 Filters")
     search = st.sidebar.text_input("Search by name, ID, or diagnosis:")
-    doctor_filter = st.sidebar.selectbox(
-        "Doctor", ["All"] + sorted(patients_df["Doctor's Name"].dropna().unique())
-    )
-    sex_filter = st.sidebar.selectbox(
-        "Sex", ["All"] + sorted(patients_df["Sex"].dropna().unique())
-    )
+    doctor_filter = st.sidebar.selectbox("Doctor", ["All"] + sorted(patients_df["Doctor's Name"].dropna().unique()))
+    sex_filter = st.sidebar.selectbox("Sex", ["All"] + sorted(patients_df["Sex"].dropna().unique()))
     st.sidebar.markdown("---")
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
@@ -86,7 +95,16 @@ try:
     col3.metric("♂️ Males", sum(patients_df["Sex"] == "Male"))
     col4.metric("♀️ Females", sum(patients_df["Sex"] == "Female"))
 
-    # ======= PATIENT PROFILES =======
+    # ======= OPTIONAL CHART =======
+    with st.expander("📊 View Analytics", expanded=False):
+        if "Age (in years)" in patients_df.columns:
+            fig = px.histogram(
+                patients_df, x="Age (in years)", nbins=10,
+                title="Age Distribution", template="simple_white"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    # ======= PATIENT CARDS =======
     st.subheader("🧾 Patient Profiles")
 
     if filtered_df.empty:
