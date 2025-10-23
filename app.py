@@ -1,156 +1,91 @@
 import streamlit as st
 import pandas as pd
-import gspread
 from google.oauth2.service_account import Credentials
+import gspread
+from datetime import datetime
 
-# --- Page Config ---
-st.set_page_config(
-    page_title="Patient Profiles",
-    page_icon="🧠",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# ---------------- GOOGLE SHEETS CONNECTION ----------------
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0"
 
-# --- Custom CSS for Modern Design ---
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+creds = Credentials.from_service_account_file("service_account.json", scopes=SCOPES)
+client = gspread.authorize(creds)
+sheet = client.open_by_url(SHEET_URL).sheet1
+
+# ---------------- LOAD DATA ----------------
+@st.cache_data(ttl=300)
+def load_data():
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    return df
+
+# ---------------- APP LAYOUT ----------------
+st.set_page_config(page_title="Patient Database", layout="wide")
+
 st.markdown("""
     <style>
-        [data-testid="stAppViewContainer"] {
-            background: #f8f9fb;
+        body {
+            font-family: 'Inter', sans-serif;
         }
-        [data-testid="stHeader"] {
-            background: rgba(0,0,0,0);
-        }
-
-        .main-title {
-            font-size: 2rem;
+        .title {
+            font-size: 30px;
             font-weight: 700;
-            color: #222;
-            padding-bottom: 0.3rem;
-        }
-        .sub-title {
-            color: #666;
-            font-size: 1rem;
-        }
-
-        .profile-card {
-            background-color: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .profile-card h3 {
-            margin: 0;
-            color: #0078ff;
-        }
-
-        .profile-detail {
-            margin-top: 0.5rem;
             color: #333;
-            font-size: 0.95rem;
         }
-
-        div.stButton > button {
-            background-color: #0078ff;
-            color: white;
-            border-radius: 8px;
-            padding: 0.4rem 1rem;
-            border: none;
+        .subtitle {
+            font-size: 16px;
+            color: #666;
         }
-
-        div.stButton > button:hover {
-            background-color: #005fcc;
+        .card {
+            background-color: #f9f9fb;
+            border: 1px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .label {
+            font-weight: 600;
+            color: #444;
+        }
+        .value {
+            color: #000;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- Google Sheets setup ---
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/"
-SHEET_NAME = "Responses"
-
-def connect_to_google_sheet():
-    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    credentials = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=scopes
-    )
-    client = gspread.authorize(credentials)
-    return client.open_by_url(SHEET_URL).worksheet(SHEET_NAME)
-
-def load_data(sheet):
-    data = sheet.get_all_records()
-    if not data:
-        return pd.DataFrame()
-    df = pd.DataFrame(data)
-    df.columns = [c.strip() for c in df.columns]
-    return df
-
-# --- Main UI ---
-st.markdown('<div class="main-title">🧠 Patient Profiles Viewer</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">View and search all patient data from Google Sheets in one place</div>', unsafe_allow_html=True)
-st.markdown("---")
-
+# ---------------- LOAD AND DISPLAY DATA ----------------
 try:
-    sheet = connect_to_google_sheet()
-    patients_df = load_data(sheet)
+    df = load_data()
+    st.markdown("<div class='title'>Patient Records</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Select a patient to view full details.</div>", unsafe_allow_html=True)
+    st.divider()
 
-    if patients_df.empty:
-        st.warning("No patient records found in the Google Sheet.")
+    if df.empty:
+        st.warning("No data found in the Google Sheet.")
     else:
-        st.success(f"✅ Loaded {len(patients_df)} patient records successfully.")
-        
-        # --- Search bar ---
-        search = st.text_input("🔍 Search by Name, ID, or Diagnosis")
-        st.markdown("")
+        # Dropdown for patient selection
+        patient_list = df["Full Name"].dropna().unique().tolist()
+        selected_patient = st.selectbox("Select Patient:", patient_list)
 
-        # --- Filter results ---
-        if search:
-            filtered = patients_df[
-                patients_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
-            ]
-        else:
-            filtered = patients_df
+        if selected_patient:
+            patient_data = df[df["Full Name"] == selected_patient]
 
-        # --- Session state for selected patient ---
-        if "selected_patient" not in st.session_state:
-            st.session_state.selected_patient = None
+            if not patient_data.empty:
+                patient = patient_data.iloc[0].to_dict()
 
-        # --- If a patient is selected, show profile ---
-        if st.session_state.selected_patient is not None:
-            patient = st.session_state.selected_patient
-            st.markdown("### 👤 Patient Profile")
-            st.markdown("---")
+                st.markdown(f"<h3 style='margin-top:30px; color:#2b5876;'>🧾 {patient.get('Full Name', 'Unnamed Patient')}</h3>", unsafe_allow_html=True)
+                st.write("---")
 
-            # Show all columns dynamically
-            st.markdown('<div class="profile-card">', unsafe_allow_html=True)
-            st.markdown(f"<h3>{patient.get('Full Name', 'Unnamed Patient')}</h3>", unsafe_allow_html=True)
-            for col in patients_df.columns:
-                value = patient.get(col, 'N/A')
-                if value == "" or pd.isna(value):
-                    value = "N/A"
-                st.markdown(f'<div class="profile-detail"><strong>{col}:</strong> {value}</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            if st.button("⬅️ Back to All Patients"):
-                st.session_state.selected_patient = None
-                st.rerun()
-
-        else:
-            # --- Show patient list with clickable names ---
-            st.markdown("### 👥 All Patients")
-            st.markdown("---")
-
-            if not filtered.empty:
-                for _, row in filtered.iterrows():
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        if st.button(row.get("Full Name", "Unnamed Patient")):
-                            st.session_state.selected_patient = row.to_dict()
-                            st.rerun()
-                    with col2:
-                        st.markdown(f"**Age:** {row.get('Age (in years)', 'N/A')}  |  **Sex:** {row.get('Sex', 'N/A')}")
-            else:
-                st.warning("No matching records found.")
+                # Display all columns, even if blank
+                for key, value in patient.items():
+                    display_value = value if str(value).strip() != "" else "N/A"
+                    st.markdown(f"""
+                        <div class='card'>
+                            <span class='label'>{key}</span><br>
+                            <span class='value'>{display_value}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
 
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")
