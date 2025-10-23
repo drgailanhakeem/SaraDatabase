@@ -58,13 +58,8 @@ st.markdown("""
             margin-bottom: 0.4rem;
         }
 
-        a {
-            text-decoration: none;
-            color: #0078ff;
-            font-weight: 600;
-        }
-        a:hover {
-            text-decoration: underline;
+        .back-btn {
+            margin-top: 1.5rem;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -89,6 +84,7 @@ def load_data(sheet):
     df.columns = [c.strip() for c in df.columns]
     return df
 
+
 # --- Main UI ---
 st.markdown('<div class="main-title">🧠 Patient Profiles Viewer</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">View and search all patient data from Google Sheets in one place</div>', unsafe_allow_html=True)
@@ -102,12 +98,14 @@ try:
         st.warning("No patient records found in the Google Sheet.")
     else:
         st.success(f"✅ Loaded {len(patients_df)} patient records successfully.")
-        
+
+        # --- State ---
+        if "selected_patient" not in st.session_state:
+            st.session_state.selected_patient = None
+
         # --- Search bar ---
         search = st.text_input("🔍 Search by Name, ID, or Diagnosis")
-        st.markdown("")
 
-        # --- Filter results ---
         if search:
             filtered = patients_df[
                 patients_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
@@ -115,12 +113,8 @@ try:
         else:
             filtered = patients_df
 
-        # --- Navigation state ---
-        if "selected_patient" not in st.session_state:
-            st.session_state.selected_patient = None
-
+        # --- Show list or detail ---
         if st.session_state.selected_patient is None:
-            # --- List view ---
             if not filtered.empty:
                 for i, patient in filtered.iterrows():
                     name = patient.get("Full Name", "Unnamed Patient")
@@ -131,44 +125,30 @@ try:
                         <div class="patient-card">
                             <div style="font-size:1.2rem; font-weight:600;">{name}</div>
                             <div style="color:#555;">🆔 {patient_id}</div>
-                            <div style="margin-top:0.6rem;">
-                                <a href="?patient={i}">View Details →</a>
-                            </div>
                         </div>
                         """, unsafe_allow_html=True)
+                        if st.button(f"View Details →", key=f"btn_{i}"):
+                            st.session_state.selected_patient = i
+                            st.experimental_rerun()
             else:
                 st.warning("No matching records found.")
         else:
-            # --- Detail view ---
-            idx = st.session_state.selected_patient
-            if 0 <= idx < len(patients_df):
-                patient = patients_df.iloc[idx]
+            # --- Detail View ---
+            patient = patients_df.iloc[st.session_state.selected_patient]
+            st.markdown(f"### 👤 {patient.get('Full Name', 'Unnamed Patient')}")
+            st.markdown("#### Patient Details")
 
-                st.markdown(f"### 👤 {patient.get('Full Name', 'Unnamed Patient')}")
-                st.markdown("#### Patient Details")
+            st.markdown('<div class="patient-section">', unsafe_allow_html=True)
+            for col in patients_df.columns:
+                value = patient.get(col, "")
+                if pd.isna(value) or value == "":
+                    value = "—"
+                st.markdown(f"<div class='label'>{col}</div><div class='value'>{value}</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-                with st.container():
-                    st.markdown('<div class="patient-section">', unsafe_allow_html=True)
-                    for col in patients_df.columns:
-                        value = patient.get(col, "")
-                        if pd.isna(value) or value == "":
-                            value = "—"
-                        st.markdown(f"<div class='label'>{col}</div><div class='value'>{value}</div>", unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-                if st.button("← Back to List"):
-                    st.session_state.selected_patient = None
-            else:
-                st.warning("Patient not found.")
-
-        # --- Handle link clicks ---
-        query_params = st.query_params
-        if "patient" in query_params:
-            try:
-                st.session_state.selected_patient = int(query_params["patient"])
-                st.experimental_rerun()
-            except:
+            if st.button("← Back to List", key="back", help="Return to patient list"):
                 st.session_state.selected_patient = None
+                st.experimental_rerun()
 
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")
