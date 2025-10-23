@@ -11,9 +11,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS ---
+# --- Custom CSS for Modern Design ---
 st.markdown("""
     <style>
+        /* General app background */
         [data-testid="stAppViewContainer"] {
             background: #f8f9fb;
         }
@@ -21,6 +22,7 @@ st.markdown("""
             background: rgba(0,0,0,0);
         }
 
+        /* Titles */
         .main-title {
             font-size: 2rem;
             font-weight: 700;
@@ -31,44 +33,50 @@ st.markdown("""
             color: #666;
             font-size: 1rem;
         }
+
+        /* Dataframe styling */
         .stDataFrame {
             background: white;
             border-radius: 10px;
             padding: 10px;
             box-shadow: 0 0 8px rgba(0,0,0,0.08);
         }
+
+        /* Profile Card */
+        .profile-card {
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .profile-card h3 {
+            margin: 0;
+            color: #0078ff;
+        }
+        .profile-detail {
+            margin-top: 0.5rem;
+            color: #333;
+        }
+
+        /* Search box */
         input[type="text"] {
             border-radius: 8px;
             border: 1px solid #ccc;
             padding: 0.5rem;
             width: 100%;
         }
-        .stAlert {
+
+        /* Buttons */
+        div.stButton > button {
+            background-color: #0078ff;
+            color: white;
             border-radius: 8px;
+            padding: 0.4rem 1rem;
+            border: none;
         }
-        .patient-card {
-            background-color: white;
-            border-radius: 16px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        .patient-header {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #111;
-        }
-        .patient-sub {
-            font-size: 1rem;
-            color: #555;
-            margin-bottom: 1rem;
-        }
-        .field-label {
-            font-weight: 600;
-            color: #374151;
-        }
-        .field-value {
-            color: #111;
+        div.stButton > button:hover {
+            background-color: #005fcc;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -93,32 +101,25 @@ def load_data(sheet):
     df.columns = [c.strip() for c in df.columns]
     return df
 
-# --- Load Data ---
-@st.cache_data(ttl=300)
-def get_data():
+# --- Main UI ---
+st.markdown('<div class="main-title">🧠 Patient Profiles Viewer</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">View and search all patient data from Google Sheets in one place</div>', unsafe_allow_html=True)
+st.markdown("---")
+
+try:
     sheet = connect_to_google_sheet()
-    df = load_data(sheet)
-    return df
+    patients_df = load_data(sheet)
 
-# --- Main ---
-if "selected_patient" not in st.session_state:
-    st.session_state.selected_patient = None
-
-def show_main_view():
-    st.markdown('<div class="main-title">🧠 Patient Profiles Viewer</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">Click on a patient to view full details</div>', unsafe_allow_html=True)
-    st.markdown("---")
-
-    try:
-        patients_df = get_data()
-
-        if patients_df.empty:
-            st.warning("No patient records found in the Google Sheet.")
-            return
-
+    if patients_df.empty:
+        st.warning("No patient records found in the Google Sheet.")
+    else:
         st.success(f"✅ Loaded {len(patients_df)} patient records successfully.")
+        
+        # --- Search bar ---
         search = st.text_input("🔍 Search by Name, ID, or Diagnosis")
+        st.markdown("")
 
+        # --- Filter results ---
         if search:
             filtered = patients_df[
                 patients_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
@@ -126,61 +127,54 @@ def show_main_view():
         else:
             filtered = patients_df
 
-        if not filtered.empty:
-            for i, row in filtered.iterrows():
-                name = row.get("Full Name", "Unknown")
-                pid = row.get("Patient ID", "N/A")
-                dx = row.get("Final Diagnosis", "N/A")
+        # --- Session state for selected patient ---
+        if "selected_patient" not in st.session_state:
+            st.session_state.selected_patient = None
 
-                if st.button(f"🧍 {name} — {dx}", key=f"patient_{i}"):
-                    st.session_state.selected_patient = row.to_dict()
-                    st.rerun()
+        # --- If a patient is selected, show profile ---
+        if st.session_state.selected_patient:
+            patient = st.session_state.selected_patient
+            st.markdown("### 👤 Patient Profile")
+            st.markdown("---")
+            st.markdown(f"""
+                <div class="profile-card">
+                    <h3>{patient.get('Full Name', 'N/A')}</h3>
+                    <div class="profile-detail"><strong>Age:</strong> {patient.get('Age (in years)', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Sex:</strong> {patient.get('Sex', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Date of Birth:</strong> {patient.get('Date of Birth', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Address:</strong> {patient.get('Address', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Date of Visit:</strong> {patient.get('Date of Visit', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Chief Complaint:</strong> {patient.get('Cheif Compliant', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Duration of Complaint:</strong> {patient.get('Duration of Compliant', 'N/A')}</div>
+                    <div class="profile-detail"><strong>HPI:</strong> {patient.get('HPI', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Past Medical Hx:</strong> {patient.get('Past Medical Hx', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Family Hx:</strong> {patient.get('Family Hx', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Working Diagnosis:</strong> {patient.get('Working Diagnosis', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Final Diagnosis:</strong> {patient.get('Final Diagnosis', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Medications:</strong> {patient.get('Medications Prescribed', 'N/A')}</div>
+                    <div class="profile-detail"><strong>Doctor's Notes:</strong> {patient.get("Doctor's Notes / Impression", 'N/A')}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            if st.button("⬅️ Back to All Patients"):
+                st.session_state.selected_patient = None
+
         else:
-            st.warning("No matching records found.")
+            # --- Show patient list with clickable names ---
+            st.markdown("### 👥 All Patients")
+            st.markdown("---")
 
-    except Exception as e:
-        st.error(f"❌ Error loading data: {e}")
+            if not filtered.empty:
+                for _, row in filtered.iterrows():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        if st.button(row["Full Name"]):
+                            st.session_state.selected_patient = row
+                            st.rerun()
+                    with col2:
+                        st.markdown(f"**Age:** {row.get('Age (in years)', 'N/A')}  |  **Sex:** {row.get('Sex', 'N/A')}")
+            else:
+                st.warning("No matching records found.")
 
-def show_patient_profile(patient):
-    st.markdown(f'<div class="main-title">{patient.get("Full Name", "Unnamed Patient")}</div>', unsafe_allow_html=True)
-    st.markdown("---")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"**Patient ID:** {patient.get('Patient ID', 'N/A')}")
-        st.markdown(f"**Sex:** {patient.get('Sex', 'N/A')}")
-        st.markdown(f"**Age:** {patient.get('Age (in years)', 'N/A')}")
-        st.markdown(f"**Address:** {patient.get('Address', 'N/A')}")
-        st.markdown(f"**Date of Visit:** {patient.get('Date of Visit', 'N/A')}")
-        st.markdown(f"**Doctor's Name:** {patient.get(\"Doctor's Name\", 'N/A')}")
-    with col2:
-        st.markdown(f"**Chief Complaint:** {patient.get('Cheif Compliant', 'N/A')}")
-        st.markdown(f"**Duration:** {patient.get('Duration of Compliant', 'N/A')}")
-        st.markdown(f"**Working Diagnosis:** {patient.get('Working Diagnosis', 'N/A')}")
-        st.markdown(f"**Final Diagnosis:** {patient.get('Final Diagnosis', 'N/A')}")
-        st.markdown(f"**Medications Prescribed:** {patient.get('Medications Prescribed', 'N/A')}")
-
-    st.markdown("### 🩺 Clinical Notes")
-    st.markdown(f"{patient.get(\"Doctor's Notes / Impression\", 'N/A')}")
-
-    st.markdown("### 🧾 Lab & Imaging")
-    st.markdown(f"- **Lab Tests Ordered:** {patient.get('Lab Tests Ordered', 'N/A')}")
-    st.markdown(f"- **Lab Results:** {patient.get('Lab Results', 'N/A')}")
-    st.markdown(f"- **Imaging Studies:** {patient.get('Imaging Studies', 'N/A')}")
-
-    st.markdown("### 💬 Other Info")
-    st.markdown(f"- **Occupation:** {patient.get('Occupation', 'N/A')}")
-    st.markdown(f"- **Marital Status:** {patient.get('Marital Status', 'N/A')}")
-    st.markdown(f"- **Smoking Status:** {patient.get('Smoking Status', 'N/A')}")
-    st.markdown(f"- **Alcohol Use:** {patient.get('Alcohol Use', 'N/A')}")
-
-    st.markdown("---")
-    if st.button("⬅️ Back to Patient List"):
-        st.session_state.selected_patient = None
-        st.rerun()
-
-# --- Router ---
-if st.session_state.selected_patient:
-    show_patient_profile(st.session_state.selected_patient)
-else:
-    show_main_view()
+except Exception as e:
+    st.error(f"❌ Error loading data: {e}")
