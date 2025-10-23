@@ -20,25 +20,36 @@ def connect_to_google_sheet():
     client = gspread.authorize(credentials)
     return client.open_by_url(SHEET_URL).worksheet(SHEET_NAME)
 
+# ========== LOAD & VALIDATE DATA ==========
 @st.cache_data(ttl=300)
-def load_data(sheet):
-    records = sheet.get_all_records()
+def load_data(_sheet):
+    records = _sheet.get_all_records()
     if not records:
         return pd.DataFrame()
+
     df = pd.DataFrame(records)
     df.columns = [c.strip() for c in df.columns]
+
+    # ✅ Validate structure
+    required_cols = [
+        "Patient ID", "Full Name", "Age (in years)", "Sex",
+        "Doctor's Name", "Date of Visit", "Working Diagnosis"
+    ]
+    missing_cols = [c for c in required_cols if c not in df.columns]
+
+    if missing_cols:
+        raise ValueError(f"Missing columns in Google Sheet: {', '.join(missing_cols)}")
+
+    # Drop empty columns automatically
+    df = df.dropna(axis=1, how='all')
+
     return df
 
 # ========== UI STYLE ==========
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #f7f9fc;
-    }
-    .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 2rem;
-    }
+    .stApp { background-color: #f7f9fc; }
+    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
     .stExpander {
         border-radius: 12px !important;
         border: 1px solid #ddd !important;
@@ -49,7 +60,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ========== LOAD DATA ==========
+# ========== MAIN APP ==========
 try:
     sheet = connect_to_google_sheet()
     patients_df = load_data(sheet)
@@ -63,8 +74,12 @@ try:
     # ======= SIDEBAR =======
     st.sidebar.header("🔍 Filters")
     search = st.sidebar.text_input("Search by name, ID, or diagnosis:")
-    doctor_filter = st.sidebar.selectbox("Doctor", ["All"] + sorted(patients_df["Doctor's Name"].dropna().unique()))
-    sex_filter = st.sidebar.selectbox("Sex", ["All"] + sorted(patients_df["Sex"].dropna().unique()))
+    doctor_filter = st.sidebar.selectbox(
+        "Doctor", ["All"] + sorted(patients_df["Doctor's Name"].dropna().unique())
+    )
+    sex_filter = st.sidebar.selectbox(
+        "Sex", ["All"] + sorted(patients_df["Sex"].dropna().unique())
+    )
     st.sidebar.markdown("---")
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
