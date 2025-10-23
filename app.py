@@ -1,33 +1,19 @@
 import streamlit as st
 import pandas as pd
-import gspread
-from google.oauth2.service_account import Credentials
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(page_title="Patient EMR Dashboard", layout="wide", page_icon="🧠")
 
 # ========== GOOGLE SHEET SETTINGS ==========
+# ⚠️ Make sure your Google Sheet is shared as "Anyone with the link can view"
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/"
-SHEET_NAME = "Responses"
+SHEET_GID = "0"  # Usually 0 for the first sheet, but you can check the URL
 
-# ========== CONNECT TO GOOGLE SHEETS ==========
+# ========== LOAD DATA DIRECTLY ==========
 @st.cache_data(ttl=300)
-def connect_to_google_sheet():
-    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    credentials = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=scopes
-    )
-    client = gspread.authorize(credentials)
-    return client.open_by_url(SHEET_URL).worksheet(SHEET_NAME)
-
-# ========== LOAD & VALIDATE DATA ==========
-@st.cache_data(ttl=300)
-def load_data(_sheet):
-    records = _sheet.get_all_records()
-    if not records:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(records)
+def load_data():
+    csv_url = SHEET_URL.replace("/edit#", f"/export?format=csv&gid={SHEET_GID}")
+    df = pd.read_csv(csv_url)
     df.columns = [c.strip() for c in df.columns]
 
     # ✅ Validate structure
@@ -36,13 +22,10 @@ def load_data(_sheet):
         "Doctor's Name", "Date of Visit", "Working Diagnosis"
     ]
     missing_cols = [c for c in required_cols if c not in df.columns]
-
     if missing_cols:
         raise ValueError(f"Missing columns in Google Sheet: {', '.join(missing_cols)}")
 
-    # Drop empty columns automatically
     df = df.dropna(axis=1, how='all')
-
     return df
 
 # ========== UI STYLE ==========
@@ -62,8 +45,7 @@ st.markdown("""
 
 # ========== MAIN APP ==========
 try:
-    sheet = connect_to_google_sheet()
-    patients_df = load_data(sheet)
+    patients_df = load_data()
 
     st.title("🧠 Patient EMR Dashboard")
 
@@ -71,7 +53,7 @@ try:
         st.warning("No patient records found in the Google Sheet.")
         st.stop()
 
-    # ======= SIDEBAR =======
+    # ======= SIDEBAR FILTERS =======
     st.sidebar.header("🔍 Filters")
     search = st.sidebar.text_input("Search by name, ID, or diagnosis:")
     doctor_filter = st.sidebar.selectbox(
@@ -104,7 +86,7 @@ try:
     col3.metric("♂️ Males", sum(patients_df["Sex"] == "Male"))
     col4.metric("♀️ Females", sum(patients_df["Sex"] == "Female"))
 
-    # ======= PATIENT CARDS =======
+    # ======= PATIENT PROFILES =======
     st.subheader("🧾 Patient Profiles")
 
     if filtered_df.empty:
