@@ -7,7 +7,7 @@ st.set_page_config(page_title="Patient Profiles", layout="wide")
 
 # Google Sheets setup
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/"
-SHEET_NAME = "Form Responses 1"
+SHEET_NAME = "Responses"
 
 # Google API connection
 def connect_to_google_sheet():
