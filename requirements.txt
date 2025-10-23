@@ -3,3 +3,4 @@ gspread
 gspread_dataframe
 google-auth
 streamlit
+plotly
