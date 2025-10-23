@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime, date, time
+from datetime import datetime
 
 # ===============================
 # CONFIGURATION
@@ -49,15 +49,21 @@ EXPECTED_COLUMNS = [
 ]
 
 # ===============================
-# LOAD DATA
+# LOAD DATA (Robust Cleaner)
 # ===============================
 def load_data(sheet):
     df = pd.DataFrame(sheet.get_all_records())
-    df.columns = [str(c).strip() for c in df.columns]
+    # Clean column names
+    df.columns = [str(c).strip().replace("  ", " ") for c in df.columns]
+
+    # Add any missing expected columns
     for col in EXPECTED_COLUMNS:
         if col not in df.columns:
             df[col] = ""
-    return df[EXPECTED_COLUMNS]
+
+    # Reorder columns consistently
+    df = df[[c for c in EXPECTED_COLUMNS if c in df.columns]]
+    return df
 
 try:
     patients_df = load_data(sheet_responses)
@@ -66,7 +72,7 @@ except Exception as e:
     st.error(f"❌ Failed to load sheets: {e}")
     st.stop()
 
-# Ensure Patient ID is string and not NaN
+# Ensure Patient ID is string
 patients_df["Patient ID"] = patients_df["Patient ID"].fillna("").astype(str)
 visits_df["Patient ID"] = visits_df["Patient ID"].fillna("").astype(str)
 
@@ -87,14 +93,16 @@ if not patients_df.empty:
     ] if search else patients_df
 
     for i, row in filtered_patients.iterrows():
-        unique_suffix = f"_{i}"  # ensures all keys are unique
+        unique_suffix = f"_{i}"  # unique per row to avoid duplicate keys
 
         with st.expander(f"👤 {row['Full Name']} ({row['Patient ID']})", expanded=False):
             st.markdown("### 🧾 Patient Information")
             for col, val in row.items():
                 st.write(f"**{col}:** {val if val else 'N/A'}")
 
-            # Visits Section
+            # ===============================
+            # VISITS SECTION
+            # ===============================
             st.markdown("### 🩺 Visits")
             patient_visits = visits_df[visits_df["Patient ID"] == row["Patient ID"]]
 
@@ -108,7 +116,9 @@ if not patients_df.empty:
 
             st.divider()
 
-            # Add Visit Form
+            # ===============================
+            # ADD VISIT FORM
+            # ===============================
             with st.expander("➕ Add Visit", expanded=False):
                 with st.form(f"add_visit_form_{row['Patient ID']}{unique_suffix}"):
                     visit_data = {}
@@ -126,12 +136,14 @@ if not patients_df.empty:
                         except Exception as e:
                             st.error(f"Error adding visit: {e}")
 
-            # Delete Button
+            # ===============================
+            # DELETE BUTTON
+            # ===============================
             delete_key = f"delete_{row['Patient ID']}{unique_suffix}"
             if st.button("🗑️ Delete Patient", key=delete_key):
                 try:
                     all_records = sheet_responses.get_all_records()
-                    updated_records = [r for r in all_records if r.get("Patient ID") != row["Patient ID"]]
+                    updated_records = [r for r in all_records if str(r.get("Patient ID")) != str(row["Patient ID"])]
                     sheet_responses.clear()
                     if updated_records:
                         sheet_responses.append_row(list(updated_records[0].keys()))
