@@ -11,12 +11,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Modern Design ---
+# --- Custom CSS ---
 st.markdown("""
     <style>
-        /* General app background */
+        /* Background */
         [data-testid="stAppViewContainer"] {
-            background: #f8f9fb;
+            background-color: #f7f9fb;
         }
         [data-testid="stHeader"] {
             background: rgba(0,0,0,0);
@@ -26,33 +26,44 @@ st.markdown("""
         .main-title {
             font-size: 2rem;
             font-weight: 700;
-            color: #222;
+            color: #1f2937;
             padding-bottom: 0.3rem;
         }
         .sub-title {
-            color: #666;
+            color: #6b7280;
             font-size: 1rem;
         }
 
-        /* Dataframe styling */
-        .stDataFrame {
+        /* Card styling */
+        .patient-card {
             background: white;
-            border-radius: 10px;
-            padding: 10px;
-            box-shadow: 0 0 8px rgba(0,0,0,0.08);
+            border-radius: 16px;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.2s ease-in-out;
         }
-
-        /* Search box */
-        input[type="text"] {
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            padding: 0.5rem;
-            width: 100%;
+        .patient-card:hover {
+            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
         }
-
-        /* Success/Warning boxes */
-        .stAlert {
+        .patient-name {
+            font-weight: 600;
+            font-size: 1.2rem;
+            color: #111827;
+        }
+        .patient-meta {
+            color: #4b5563;
+            font-size: 0.9rem;
+        }
+        .metric {
+            background: #f3f4f6;
             border-radius: 8px;
+            padding: 0.4rem 0.6rem;
+            margin-right: 0.4rem;
+            display: inline-block;
+            font-size: 0.85rem;
+            color: #374151;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -77,9 +88,9 @@ def load_data(sheet):
     df.columns = [c.strip() for c in df.columns]
     return df
 
-# --- Main UI ---
-st.markdown('<div class="main-title">🧠 Patient Profiles Viewer</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">View and search all patient data from Google Sheets in one place</div>', unsafe_allow_html=True)
+# --- Main Header ---
+st.markdown('<div class="main-title">🧠 Patient Profiles</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Quick overview of all patient data from Google Sheets</div>', unsafe_allow_html=True)
 st.markdown("---")
 
 try:
@@ -89,13 +100,12 @@ try:
     if patients_df.empty:
         st.warning("No patient records found in the Google Sheet.")
     else:
-        st.success(f"✅ Loaded {len(patients_df)} patient records successfully.")
-        
-        # --- Search bar ---
-        search = st.text_input("🔍 Search by Name, ID, or Diagnosis")
+        st.success(f"✅ Loaded {len(patients_df)} patient records.")
+
+        # --- Search ---
+        search = st.text_input("🔍 Search by name, ID, or diagnosis")
         st.markdown("")
 
-        # --- Filter results ---
         if search:
             filtered = patients_df[
                 patients_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
@@ -103,10 +113,30 @@ try:
         else:
             filtered = patients_df
 
-        if not filtered.empty:
-            st.dataframe(filtered, use_container_width=True, hide_index=True)
-        else:
+        if filtered.empty:
             st.warning("No matching records found.")
+        else:
+            cols = st.columns(2)  # two cards per row
+            for i, (_, row) in enumerate(filtered.iterrows()):
+                with cols[i % 2]:
+                    st.markdown(f"""
+                        <div class="patient-card">
+                            <div class="patient-name">{row.get('Patient Name', 'Unnamed')}</div>
+                            <div class="patient-meta">📅 {row.get('Visit Date', 'N/A')} | 🧍 {row.get('Gender', 'N/A')}</div>
+                            <div style="margin-top:0.8rem;">
+                                <span class="metric">Age: {row.get('Age ( In Years )', 'N/A')}</span>
+                                <span class="metric">Weight: {row.get('Weight', 'N/A')} kg</span>
+                                <span class="metric">FBG: {row.get('Fasting Blood Glucose (FBG) before Pentat therapy ( mg/dL )', 'N/A')}</span>
+                                <span class="metric">HbA1c: {row.get('HbA1c at the latest follow-up (%)', 'N/A')}</span>
+                            </div>
+                            <div style="margin-top:0.8rem;">
+                                💊 <b>Treatment:</b> {', '.join([m for m in [row.get('Met',''), row.get('DPP-4',''), row.get('GLP-1',''), row.get('SGLT2','')] if m]) or 'None'}
+                            </div>
+                            <div style="margin-top:0.5rem; color:#6b7280;">
+                                📋 <b>Diagnosis:</b> {row.get('Diagnosis', 'N/A')}
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")
