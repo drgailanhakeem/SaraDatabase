@@ -9,7 +9,7 @@ st.set_page_config(page_title="Patient EMR Dashboard", layout="wide", page_icon=
 
 # ========== GOOGLE SHEET SETTINGS ==========
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1GKGJQQii5lrXvYNjk7mGt6t2VUY6n5BNqS9lkI_vRH0/"
-SHEET_NAME = "Form Responses 1"
+SHEET_NAME = "Responses"
 
 # ========== CONNECT TO GOOGLE SHEETS ==========
 @st.cache_data(ttl=300)
