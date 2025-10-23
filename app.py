@@ -34,14 +34,6 @@ st.markdown("""
             font-size: 1rem;
         }
 
-        /* Dataframe styling */
-        .stDataFrame {
-            background: white;
-            border-radius: 10px;
-            padding: 10px;
-            box-shadow: 0 0 8px rgba(0,0,0,0.08);
-        }
-
         /* Profile Card */
         .profile-card {
             background-color: white;
@@ -57,14 +49,6 @@ st.markdown("""
         .profile-detail {
             margin-top: 0.5rem;
             color: #333;
-        }
-
-        /* Search box */
-        input[type="text"] {
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            padding: 0.5rem;
-            width: 100%;
         }
 
         /* Buttons */
@@ -132,7 +116,7 @@ try:
             st.session_state.selected_patient = None
 
         # --- If a patient is selected, show profile ---
-        if st.session_state.selected_patient:
+        if st.session_state.selected_patient is not None:
             patient = st.session_state.selected_patient
             st.markdown("### 👤 Patient Profile")
             st.markdown("---")
@@ -158,6 +142,7 @@ try:
 
             if st.button("⬅️ Back to All Patients"):
                 st.session_state.selected_patient = None
+                st.rerun()
 
         else:
             # --- Show patient list with clickable names ---
@@ -169,7 +154,7 @@ try:
                     col1, col2 = st.columns([3, 1])
                     with col1:
                         if st.button(row["Full Name"]):
-                            st.session_state.selected_patient = row
+                            st.session_state.selected_patient = row.to_dict()
                             st.rerun()
                     with col2:
                         st.markdown(f"**Age:** {row.get('Age (in years)', 'N/A')}  |  **Sex:** {row.get('Sex', 'N/A')}")
